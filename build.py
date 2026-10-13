@@ -18,7 +18,25 @@ L=json.load(open(LP)) if os.path.exists(LP) else []
 LL=json.load(open(f'{D}/data/llama.json')) if os.path.exists(f'{D}/data/llama.json') else {}
 KP=json.load(open(f'{D}/data/launchpads.json')) if os.path.exists(f'{D}/data/launchpads.json') else {}
 for e in KP.values(): e['g']=list(e.pop('grads',{}).values())
-data=json.dumps({'ll':LL,'lp':KP,'rows':rows,'updated':meta['updated'],'launch':L},separators=(',',':'))
+HK=[('idx_combined','综合指数',''),('idx_launchpad','发射台活跃度',''),('idx_bots','交易机器人活跃度',''),('idx_pump','pump.fun 指数',''),
+ ('idx_SOL','SOL 子指数',''),('idx_BSC','BSC 子指数',''),('idx_Robinhood','Robinhood 子指数',''),
+ ('lp_total_SOL','SOL 发射台日手续费','$'),('lp_total_BSC','BSC 发射台日手续费','$'),('lp_total_Robinhood','Robinhood 发射台日手续费','$'),
+ ('lp_fee_pump.fun','pump.fun 日手续费','$'),('lp_fee_StonkFun','StonkFun 日手续费','$'),('lp_fee_Meteora DBC','Meteora DBC 日手续费','$'),
+ ('lp_fee_Flap','Flap 日手续费','$'),('lp_fee_Pons','Pons 日手续费','$'),('bot_top3','交易机器人前 3 日手续费','$'),
+ ('pump_grads','pump.fun 日毕业数','n'),('pump_launch_rate','pump.fun 新币/小时','n'),('pump_ath1m_share','ATH>$1M 占比','%'),
+ ('pump_ath_med','ATH 中位数','$'),('pump_holders_med','持有人中位数','n'),('pump_clean_share','GMGN 干净占比','%'),('pump_smart_share','聪明钱参与占比','%')]
+HH=json.load(open(f'{D}/data/history/daily.json')) if os.path.exists(f'{D}/data/history/daily.json') else {}
+hist={}
+for k,lab,u in HK:
+    pts=[]
+    for d,r in sorted(HH.items()):
+        v=r.get(k)
+        if v in (None,''): continue
+        if k.startswith('pump_') and r.get('src_pump') not in ('observed','partial'): continue
+        if k.startswith(('lp_','bot_')) and not v: continue
+        pts.append([d,v,{'partial':2,'backfill':1}.get(r.get('src_pump') if k.startswith('pump_') else (r.get('src_bots') if k.startswith('bot') else r.get('src_llama')),0)])
+    hist[k]={'l':lab,'u':u,'p':pts}
+data=json.dumps({'hist':hist,'ll':LL,'lp':KP,'rows':rows,'updated':meta['updated'],'launch':L},separators=(',',':'))
 html=r'''<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>pump.fun 每小时毕业代币</title><style>
 body{background:#0d1117;color:#e6edf3;font:14px -apple-system,"PingFang SC",sans-serif;margin:0;padding:16px;max-width:1200px;margin:auto}
@@ -31,6 +49,7 @@ th{cursor:pointer;color:#8b949e;position:sticky;top:0;background:#161b22}td:firs
 <h1>Meme 情绪看板 · pump.fun 毕业与发射台</h1><div class="sub">时间均为 UTC+7 · 最后更新：<span id="upd"></span></div>
 <div class="card"><b>综合 Meme 情绪指数</b> <span class="sub">发射台活跃度 + 交易机器人活跃度（DefiLlama）+ pump.fun 数量与质量（本站 + GMGN）</span>
 <div class="kpi" id="overall" style="margin-top:10px"></div><div class="kpi" id="chains" style="margin-top:10px"></div><div class="note" id="ocomp"></div></div>
+<div class="card"><b>历史分位</b> <span class="sub">每个指标当前值在已记录历史中的百分位（全部 / 近 1 年 / 近 90 天）；样本不足 30 天的不显示分位</span><div class="scroll"><table id="hist"></table></div><div class="note">历史数据每天一行（data/history/daily.csv，永久保留）。DefiLlama 序列（发射台、交易机器人）为回填的完整历史（UTC 日），之后每次运行更新；pump.fun / GMGN 指标只从本站开始采集时（2026-10-12 起完整）累积，较早不完整的日子不计入；当天为未完结数据（标 *）。历史指数按日重算：手续费类 = 50 × 近 3 日均值 ÷ 此前 30 日中位数；pump.fun 指数用前 7 个完整日中位数作基线（需 ≥3 天）。</div></div>
 <div class="card"><b>交易机器人 / 交易终端</b> <span class="sub">DefiLlama「Trading App」+「Telegram Bot」类 7 天手续费前 3</span><div class="scroll"><table id="bott"></table></div><svg id="bottrend"></svg></div>
 <div class="card"><b>发射台对比</b> <span class="sub">每条链除 pump.fun 外手续费前 2 的发射台（DefiLlama 7 天手续费排名）</span><div class="scroll"><table id="lpt"></table></div></div>
 <div class="card"><b>pump.fun 情绪指数</b> <span class="sub">基于 pump.fun 毕业数量与质量，对比 7 天基线</span>
@@ -132,6 +151,16 @@ function senti(){const end=D.updated,first=Math.min(...D.rows.map(r=>r.f||D.upda
  overall(S.v);
  const tq=D.rows.filter(r=>r.g>=end-86400&&r.q&&r.q[8]).sort((a,b)=>(b.a||0)-(a.a||0)).slice(0,20);
  document.getElementById('topq').innerHTML='<tr><th>代币</th><th>毕业时间</th><th>ATH 市值</th><th>当前市值</th><th>持有人</th><th>GMGN</th></tr>'+tq.map(r=>`<tr><td><b>${esc(r.s)}</b> <span class=sub>${esc(r.n)}</span></td><td>${ts(r.g)}</td><td>${f(r.a)}</td><td>${f(r.c)}</td><td>${r.h??'-'}</td><td>${qcell(r)}</td></tr>`).join('')||'<tr><td>暂无 GMGN 数据</td></tr>'}
-senti();</script></body></html>'''
+senti();
+function histTable(){const H=D.hist;let t='<tr><th>指标</th><th>当前（日期）</th><th>全部分位</th><th>近 1 年</th><th>近 90 天</th><th>样本(天)</th><th>起始</th><th>历史走势</th></tr>';
+ const fm=(v,u)=>v==null?'-':u=='$'?f(v):u=='%'?(v*100).toFixed(1)+'%':u=='n'?(+v).toFixed(v<100?1:0):(+v).toFixed(0);
+ Object.entries(H).forEach(([k,h])=>{const p=h.p;if(!p.length)return;const cur=p[p.length-1],cd=new Date(cur[0]);
+  const pc=days=>{const a=p.filter(x=>!days||(cd-new Date(x[0]))/864e5<days).map(x=>x[1]);if(a.length<30)return [null,a.length];return [Math.round(100*a.filter(v=>v<=cur[1]).length/a.length),a.length]};
+  const [pa,na]=pc(0),[p1,n1]=pc(365),[p9,n9]=pc(90),cell=(v,n)=>v==null?`<span class=sub>样本不足(${n})</span>`:`<b style="color:${v>=80?'#f85149':v<=20?'#58a6ff':'#e6edf3'}">P${v}</b>`;
+  const vs=p.map(x=>x[1]),mx=Math.max(...vs),mn=Math.min(...vs),line=vs.map((v,j)=>`${(j*160/Math.max(1,vs.length-1)).toFixed(1)},${(22-20*(v-mn)/((mx-mn)||1)).toFixed(1)}`).join(' ');
+  const bf=p.filter(x=>x[2]==1).length;
+  t+=`<tr><td>${h.l}</td><td>${fm(cur[1],h.u)}${cur[2]==2?'*':''} <span class=sub>${cur[0].slice(5)}</span></td><td>${cell(pa,na)}</td><td>${cell(p1,n1)}</td><td>${cell(p9,n9)}</td><td>${na}${bf?` <span class=sub>(回填 ${bf})</span>`:''}</td><td class=sub>${p[0][0]}</td><td><svg width="160" height="24"><polyline fill="none" stroke="#58a6ff" stroke-width="1.2" points="${line}"/></svg></td></tr>`});
+ document.getElementById('hist').innerHTML=t}
+histTable();</script></body></html>'''
 open(f'{D}/public/index.html','w').write(html.replace('__DATA__',data.replace('</','<\\/')))
 print('built',len(rows))

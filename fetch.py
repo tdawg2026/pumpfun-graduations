@@ -113,8 +113,12 @@ for ck,chain,plat,lab in gmgn.LPS:
 json.dump(K,open(KP,'w'))
 # DefiLlama launchpad fees (3-8 calls)
 import llama
-try: json.dump({'updated':now,**llama.fetch(),'BOTS':llama.bots()},open(f'{D}/data/llama.json','w')); calls['llama']=1
+LLd=None
+try: LLd={'updated':now,**llama.fetch(),'BOTS':llama.bots()}; json.dump(LLd,open(f'{D}/data/llama.json','w')); calls['llama']=1
 except Exception as ex: print('llama failed',ex)
+import history
+try: history.update(LLd,db,L,K,now); print('history days',len(history.load()))
+except Exception as ex: print('history failed',ex)
 cut=now-7*86400
 db={m:t for m,t in db.items() if (t.get('grad') or t['created'])>=cut}
 json.dump(db,open(DB+'.tmp','w')); os.replace(DB+'.tmp',DB)
