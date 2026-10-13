@@ -59,9 +59,13 @@ top=rest[:150]; rot=sorted(rest[150:],key=lambda t:t.get('holders_at') or 0)
 order=[];seen=set()
 for t in sorted(fresh,key=lambda t:t.get('holders_at') or 0)+top+rot:
     if t['mint'] not in seen: seen.add(t['mint']); order.append(t)
+t0=time.time();fails=0
 for t in order[:BUDGET]:
+    if time.time()-t0>480 or fails>=10:
+        print('holders stopped early: fails',fails,'last',HL.LAST); break
     h=HL.holders(t['mint'],t.get('tprog') or HL.PROG['2022']); calls['rpc']+=1
-    if h is None: continue
+    if h is None: fails+=1; continue
+    fails=0
     t['holders_now']=h; t['holders_at']=now
     if h>=(t.get('holders_max') or -1): t['holders_max']=h; t['holders_max_at']=now
     time.sleep(0.15)
