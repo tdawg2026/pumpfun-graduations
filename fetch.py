@@ -49,28 +49,29 @@ for i in range(0,len(need),30):
             t['gt_fdv']=float(a['fdv_usd']) if a.get('fdv_usd') else None
         else: t['gt_miss']=t.get('gt_miss',0)+1
     time.sleep(2.2)
-# holders via Solana public RPC getProgramAccounts (non-zero balances). Budget per run, prioritized + rotation.
+# holders. Tiered refresh to stay in Helius free tier (~1M credits/month):
+# graduated <6h: every run; 6-24h: every 2h; 1-7d: every 24h (dead tokens: holders_now<50 -> every 48h).
 import holders as HL
-BUDGET=600; calls['rpc']=0
-vals=list(db.values())
-fresh=[t for t in vals if (t.get('grad') or t['created'])>=now-86400]
-rest=sorted([t for t in vals if t not in fresh],key=lambda t:-(t.get('mcap') or 0))
-top=rest[:150]; rot=sorted(rest[150:],key=lambda t:t.get('holders_at') or 0)
-order=[];seen=set()
-for t in sorted(fresh,key=lambda t:t.get('holders_at') or 0)+top+rot:
-    if t['mint'] not in seen: seen.add(t['mint']); order.append(t)
-t0=time.time();fails=0
-for t in order[:BUDGET]:
-    if time.time()-t0>480 or fails>=10:
+calls['rpc']=0
+def due(t):
+    age=now-(t.get('grad') or t['created']); last=t.get('holders_at') or 0
+    iv=3000 if age<6*3600 else 2*3600-600 if age<86400 else 86400-600
+    if age>=86400 and (t.get('holders_now') or 0)<50 and last: iv=2*86400-600
+    return now-last>=iv
+order=sorted([t for t in db.values() if due(t)],key=lambda t:-(t.get('grad') or t['created']))
+t0=time.time();fails=0;LIMIT=1600
+for t in order[:LIMIT]:
+    if time.time()-t0>900 or fails>=10:
         print('holders stopped early: fails',fails,'last',HL.LAST); break
     h=HL.holders(t['mint'],t.get('tprog') or HL.PROG['2022']); calls['rpc']+=1
     if h is None: fails+=1; continue
     fails=0
     t['holders_now']=h; t['holders_at']=now
     if h>=(t.get('holders_max') or -1): t['holders_max']=h; t['holders_max_at']=now
-    time.sleep(0.15)
+    time.sleep(0.12 if HL.KEY else 0.15)
+print('holders due',len(order),'checked',calls['rpc'],'helius credits',HL.CREDITS,'mode','helius' if HL.KEY else 'public')
 cut=now-7*86400
 db={m:t for m,t in db.items() if (t.get('grad') or t['created'])>=cut}
 json.dump(db,open(DB+'.tmp','w')); os.replace(DB+'.tmp',DB)
 json.dump({'updated':now,'calls':calls,'n':len(db)},open(f'{D}/data/meta.json','w'))
-print('holders checked',calls['rpc']);print('tokens',len(db),'with grad time',sum(1 for t in db.values() if t.get('grad')),'calls',calls)
+print('tokens',len(db),'with grad time',sum(1 for t in db.values() if t.get('grad')),'calls',calls)

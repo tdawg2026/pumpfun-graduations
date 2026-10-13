@@ -19,7 +19,7 @@ th{cursor:pointer;color:#8b949e;position:sticky;top:0;background:#161b22}td:firs
 <div class="kpi" id="kpi" style="margin-top:10px"></div><svg id="chart"></svg></div>
 <div class="card"><b>每小时汇总</b><div class="scroll"><table id="sum"></table></div></div>
 <div class="card"><b>毕业代币列表</b> <span class="sub">点击表头排序</span><div class="scroll"><table id="tok"></table></div></div>
-<div class="card note">数据说明：代币列表、ATH 市值和当前市值来自 pump.fun 前端接口（frontend-api-v3，非官方，单次最多翻 1000 条，所以首次抓取只能完整覆盖约最近 20 小时，更早的小时数偏少；之后每次运行会累积，最多保留 7 天）。毕业时间取 GeckoTerminal 上 PumpSwap 池子的创建时间。ATH 市值是 pump.fun 记录的历史最高（含内盘阶段），按 10 亿总供应计算，美元计价；流动性很薄的代币可能被刷高。持有人数通过 Solana 公共 RPC（getProgramAccounts）统计余额大于 0 的账户数，含池子/合约账户；每次运行最多查 600 个（优先最近 24 小时毕业和高市值代币，其余轮流），所以部分代币的数字可能是几小时前的。“观测最高持有人”只是我们开始观测后看到的最大值，观测之前的峰值未知。页面由 GitHub Actions 每小时自动更新。</div>
+<div class="card note">数据说明：代币列表、ATH 市值和当前市值来自 pump.fun 前端接口（frontend-api-v3，非官方，单次最多翻 1000 条，所以首次抓取只能完整覆盖约最近 20 小时，更早的小时数偏少；之后每次运行会累积，最多保留 7 天）。毕业时间取 GeckoTerminal 上 PumpSwap 池子的创建时间。ATH 市值是 pump.fun 记录的历史最高（含内盘阶段），按 10 亿总供应计算，美元计价；流动性很薄的代币可能被刷高。持有人数通过 Helius RPC（getProgramAccountsV2）统计余额大于 0 的账户数，含池子/合约账户。为控制免费额度，按毕业时间分级刷新：6 小时内每小时、6–24 小时每 2 小时、超过 1 天每天一次（持有人少于 50 的每 2 天），所以较老代币的数字可能是一天前的。“观测最高持有人”只是开始观测后看到的最大值，之前的峰值未知（多数代币在毕业后很快见顶）。页面由 GitHub Actions 每小时自动更新。</div>
 <script>const D=__DATA__;
 const f=v=>v==null?'-':v>=1e9?'$'+(v/1e9).toFixed(2)+'B':v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+(v/1e3).toFixed(1)+'K':'$'+v.toFixed(0);
 const tz=7*3600,hk=t=>Math.floor((t+tz)/3600),hs=h=>{const d=new Date(h*3600e3);return (d.getUTCMonth()+1)+'/'+d.getUTCDate()+' '+String(d.getUTCHours()).padStart(2,'0')+':00'};

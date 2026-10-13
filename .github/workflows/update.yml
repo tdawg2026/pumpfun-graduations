@@ -11,6 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: curl -s -o /dev/null -w "pump.fun HTTP %{http_code}\n" "https://frontend-api-v3.pump.fun/coins?limit=1&complete=true&sort=created_timestamp&order=DESC"
       - run: python3 fetch.py && python3 build.py
+        env: {HELIUS_API_KEY: "${{ secrets.HELIUS_API_KEY }}"}
       - run: |
           git config user.name github-actions; git config user.email actions@github.com
           git add data public; git commit -m "update $(date -u +%FT%H:%MZ)" || true; git push
