@@ -64,6 +64,25 @@ for t in order[:LIMIT]:
     t['holders_now']=h; t['holders_at']=now
     time.sleep(0.12 if HL.KEY else 0.15)
 print('holders missing',len(order),'checked',calls['rpc'],'helius credits',HL.CREDITS,'mode','helius' if HL.KEY else 'public')
+# GMGN quality snapshot (once per token) + launch-rate sample
+import gmgn
+G,err=gmgn.trenches(); calls['gmgn']=1
+LP=f'{D}/data/launches.json'; L=json.load(open(LP)) if os.path.exists(LP) else []
+if G:
+    nc=[x['created_timestamp'] for x in G.get('new_creation',[]) if x.get('created_timestamp')]
+    if len(nc)>=10 and max(nc)>min(nc): L.append({'ts':now,'rate':round((len(nc)-1)*3600/(max(nc)-min(nc)),1),'n':len(nc)})
+    got=0
+    for x in G.get('completed',[]):
+        m=x['address']; t=db.get(m)
+        if t is None:
+            t=db[m]={'mint':m,'first_seen':now,'name':x.get('name'),'symbol':x.get('symbol'),'created':x.get('created_timestamp'),
+                     'grad':x.get('complete_timestamp'),'mcap':x.get('usd_market_cap') and float(x['usd_market_cap']),'source':'gmgn'}
+        if not t.get('grad') and x.get('complete_timestamp'): t['grad']=x['complete_timestamp']
+        if 'gm' not in t:
+            t['gm']={k:gmgn.num(x.get(k)) for k in gmgn.FIELDS if k in x}; t['gm_at']=now; got+=1
+    print('gmgn completed',len(G.get('completed',[])),'new snapshots',got,'launch rate',L[-1] if L else None)
+else: print('gmgn failed',err)
+L=[x for x in L if x['ts']>=now-7*86400]; json.dump(L,open(LP,'w'))
 cut=now-7*86400
 db={m:t for m,t in db.items() if (t.get('grad') or t['created'])>=cut}
 json.dump(db,open(DB+'.tmp','w')); os.replace(DB+'.tmp',DB)

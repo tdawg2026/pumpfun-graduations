@@ -2,6 +2,7 @@ name: update
 on:
   schedule: [{cron: '7 * * * *'}]
   workflow_dispatch:
+concurrency: {group: update, cancel-in-progress: false}
 permissions: {contents: write, pages: write, id-token: write}
 jobs:
   run:
@@ -10,11 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: curl -s -o /dev/null -w "pump.fun HTTP %{http_code}\n" "https://frontend-api-v3.pump.fun/coins?limit=1&complete=true&sort=created_timestamp&order=DESC"
+      - run: npm i -g gmgn-cli@1.6.6
       - run: python3 fetch.py && python3 build.py
-        env: {HELIUS_API_KEY: "${{ secrets.HELIUS_API_KEY }}"}
+        env: {HELIUS_API_KEY: "${{ secrets.HELIUS_API_KEY }}", GMGN_API_KEY: "${{ secrets.GMGN_API_KEY }}"}
       - run: |
           git config user.name github-actions; git config user.email actions@github.com
-          git add data public; git commit -m "update $(date -u +%FT%H:%MZ)" || true; git push
+          git add data public; git commit -m "update $(date -u +%FT%H:%MZ)" || true; git pull --rebase -X theirs origin main || true; git push
       - uses: actions/upload-pages-artifact@v3
         with: {path: public}
       - uses: actions/deploy-pages@v4
