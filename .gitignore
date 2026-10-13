@@ -1,0 +1,6 @@
+.env
+*.env
+dune.py
+__pycache__/
+server.log
+index.png
