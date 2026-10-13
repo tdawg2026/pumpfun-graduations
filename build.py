@@ -27,10 +27,11 @@ button{background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6
 table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:5px 8px;border-bottom:1px solid #21262d;text-align:right;white-space:nowrap}
 th{cursor:pointer;color:#8b949e;position:sticky;top:0;background:#161b22}td:first-child,th:first-child{text-align:left}a{color:#58a6ff;text-decoration:none}
 .kpi{display:flex;gap:10px;flex-wrap:wrap}.kpi div{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px 12px}.kpi b{display:block;font-size:18px}
-#chart,#trend{width:100%;height:220px}.big{font-size:32px!important}.scroll{max-height:520px;overflow:auto}.note{color:#8b949e;font-size:12px;line-height:1.6}</style></head><body>
+#chart,#trend,#bottrend{width:100%;height:220px}.big{font-size:32px!important}.scroll{max-height:520px;overflow:auto}.note{color:#8b949e;font-size:12px;line-height:1.6}</style></head><body>
 <h1>Meme 情绪看板 · pump.fun 毕业与发射台</h1><div class="sub">时间均为 UTC+7 · 最后更新：<span id="upd"></span></div>
-<div class="card"><b>综合 Meme 情绪指数</b> <span class="sub">发射台活跃度（DefiLlama，SOL/BSC/Robinhood）+ pump.fun 数量与质量（本站 + GMGN）</span>
+<div class="card"><b>综合 Meme 情绪指数</b> <span class="sub">发射台活跃度 + 交易机器人活跃度（DefiLlama）+ pump.fun 数量与质量（本站 + GMGN）</span>
 <div class="kpi" id="overall" style="margin-top:10px"></div><div class="kpi" id="chains" style="margin-top:10px"></div><div class="note" id="ocomp"></div></div>
+<div class="card"><b>交易机器人 / 交易终端</b> <span class="sub">DefiLlama「Trading App」+「Telegram Bot」类 7 天手续费前 3</span><div class="scroll"><table id="bott"></table></div><svg id="bottrend"></svg></div>
 <div class="card"><b>发射台对比</b> <span class="sub">每条链除 pump.fun 外手续费前 2 的发射台（DefiLlama 7 天手续费排名）</span><div class="scroll"><table id="lpt"></table></div></div>
 <div class="card"><b>pump.fun 情绪指数</b> <span class="sub">基于 pump.fun 毕业数量与质量，对比 7 天基线</span>
 <div class="kpi" id="senti" style="margin-top:10px"></div><svg id="trend"></svg><div class="note" id="comp"></div></div>
@@ -80,19 +81,33 @@ const CL={SOL:'Solana',BSC:'BSC',Robinhood:'Robinhood Chain'},clip=v=>Math.max(0
 function lastFull(c){const P=Object.values(c.protos);let i=c.days.length-1;while(i>0&&P.some(p=>{const nz=p.slice(-14).filter(x=>x>0).length;return nz>=10&&p[i]==0}))i--;return i}
 function feeScore(c){const i=lastFull(c),rec=sum(c.total.slice(i-2,i+1))/3,base=med(c.total.slice(Math.max(0,i-32),i-2));return {i,rec,base,s:base?clip(50*rec/base):null}}
 function lpRate(e,key){const a=(e[key]||[]).map(x=>x[1]);return a.length?{now:a[a.length-1],base:med(a)}:null}
+
+function botLayer(){const B=D.ll.BOTS;if(!B||!Object.keys(B.protos).length)return null;
+ const ps=Object.entries(B.protos),days=ps[0][1].days,n=days.length,tot=days.map((d,j)=>sum(ps.map(([k,p])=>{const i=p.days.indexOf(d);return i<0?0:p.v[i]})));
+ let i=n-1;while(i>0&&ps.some(([k,p])=>p.v[p.days.indexOf(days[i])]===0))i--;
+ const rec=sum(tot.slice(i-2,i+1))/3,base=med(tot.slice(Math.max(0,i-32),i-2)),S=base?clip(50*rec/base):null,s7=(a,j)=>sum(a.slice(j-6,j+1));
+ let t='<tr><th>名称</th><th>类别</th><th>最新日手续费</th><th>7 天</th><th>30 天</th><th>环比前 7 天</th><th>前 3 内占比(7天)</th><th>占整个板块(7天)</th><th>链分布(30天)</th></tr>';const T7=s7(tot,i);
+ ps.forEach(([k,p])=>{const a=p.v,j=a.length-1-(n-1-i),w=s7(a,j),pw=s7(a,j-7),m=sum(a.slice(j-29,j+1));
+  t+=`<tr><td><b>${k}</b></td><td>${p.cat=='Telegram Bot'?'TG 机器人':'交易终端/App'}</td><td>${f(a[j])}</td><td>${f(w)}</td><td>${f(m)}</td><td style="color:${w>=pw?'#3fb950':'#f85149'}">${pw?((w/pw-1)*100).toFixed(0)+'%':'-'}</td><td>${(100*w/T7).toFixed(1)}%</td><td>${(100*w/B.sector7d).toFixed(1)}%</td><td class=sub>${p.mix.map(([c,v])=>c.replace(' Chain','')+' '+Math.round(v*100)+'%').join(' · ')}</td></tr>`});
+ t+=`<tr><td colspan=9 class=sub>板块 7 天前 8：${B.rank.map(r=>r[0]+' '+f(r[2])).join('，')}</td></tr>`;document.getElementById('bott').innerHTML=t;
+ const sp=tot.slice(0,i+1),mx=Math.max(...sp);let s=`<svg id="bottrend" viewBox="0 0 1000 160" preserveAspectRatio="none">`;
+ s+=`<polyline fill="none" stroke="#a371f7" stroke-width="2" points="${sp.map((v,j)=>(j*1000/(sp.length-1))+','+(150-140*v/mx)).join(' ')}"/>`;
+ sp.forEach((v,j)=>{if(j%10==0)s+=`<text x="${j*1000/(sp.length-1)}" y="158" fill="#8b949e" font-size="11">${new Date(days[j]*1e3).toISOString().slice(5,10)}</text>`});
+ s+=`<text x="4" y="12" fill="#8b949e" font-size="12">前 3 合计日手续费（近 ${sp.length} 天，最高 ${f(mx)}）</text></svg>`;document.getElementById('bottrend').outerHTML=s;
+ return {S,rec,base,asof:days[i]}}
 function overall(P){const LL=D.ll,ch={};let rec=0,base=0;
  Object.keys(CL).forEach(k=>{if(!LL[k])return;const fs=feeScore(LL[k]);ch[k]=fs;rec+=fs.rec;base+=fs.base});
  const A=base?clip(50*rec/base):null;
  // pump.fun 份额（近 7 天）
  const s7=(a,i)=>sum(a.slice(i-6,i+1)),sol=LL.SOL,ip=sol?lastFull(sol):0;let tot7=0,tot7p=0;Object.keys(ch).forEach(k=>{const c=LL[k],i=ch[k].i;tot7+=s7(c.total,i);tot7p+=s7(c.total,i-7)});
  const pumpShare=sol?s7(sol.protos['pump.fun'],ip)/tot7:null,pumpShareP=sol?s7(sol.protos['pump.fun'],ip-7)/tot7p:null;
- const O=(A!=null&&P!=null)?0.4*A+0.6*P:(A??P);
+ const BL=botLayer(),BS=BL?BL.S:null,parts=[[A,0.30],[BS,0.25],[P,0.45]].filter(x=>x[0]!=null),O=parts.length?sum(parts.map(x=>x[0]*x[1]))/sum(parts.map(x=>x[1])):null;
  const sub={};Object.keys(ch).forEach(k=>{const fs=ch[k].s;if(k=='SOL'){sub[k]=P!=null?0.5*fs+0.5*P:fs;return}
   const e=Object.values(D.lp).find(e=>e.chain==k),g=e&&lpRate(e,'grate');const gs=g&&g.base?clip(50*g.now/g.base):null;sub[k]=gs!=null?0.7*fs+0.3*gs:fs});
  const lab=v=>v==null?'-':v<40?'冷淡 🥶':v<=60?'中性 😐':'火热 🔥',col=v=>v<40?'#58a6ff':v<=60?'#d29922':'#f85149',n0=v=>v==null?'-':v.toFixed(0);
- document.getElementById('overall').innerHTML=`<div>综合指数<b class="big" style="color:${col(O)}">${n0(O)}</b>${lab(O)}</div><div>发射台活跃度<b>${n0(A)}</b><span class=sub>3 条链发射台日均手续费 ${f(rec)} · 基线 ${f(base)}</span></div><div>pump.fun 指数<b>${n0(P)}</b><span class=sub>见下方 pump.fun 情绪指数</span></div><div>pump.fun 手续费份额（7天）<b>${pumpShare==null?'-':(pumpShare*100).toFixed(1)+'%'}</b><span class=sub>前 7 天 ${pumpShareP==null?'-':(pumpShareP*100).toFixed(1)+'%'}（仅展示，不计分）</span></div>`;
+ document.getElementById('overall').innerHTML=`<div>综合指数<b class="big" style="color:${col(O)}">${n0(O)}</b>${lab(O)}</div><div>发射台活跃度<b>${n0(A)}</b><span class=sub>3 条链发射台日均手续费 ${f(rec)} · 基线 ${f(base)}</span></div><div>交易机器人活跃度<b>${n0(BS)}</b><span class=sub>前 3 日均手续费 ${BL?f(BL.rec):'-'} · 基线 ${BL?f(BL.base):'-'} · 截至 ${BL?new Date(BL.asof*1e3).toISOString().slice(5,10):'-'} UTC</span></div><div>pump.fun 指数<b>${n0(P)}</b><span class=sub>见下方 pump.fun 情绪指数</span></div><div>pump.fun 手续费份额（7天）<b>${pumpShare==null?'-':(pumpShare*100).toFixed(1)+'%'}</b><span class=sub>前 7 天 ${pumpShareP==null?'-':(pumpShareP*100).toFixed(1)+'%'}（仅展示，不计分）</span></div>`;
  document.getElementById('chains').innerHTML=Object.keys(ch).map(k=>`<div>${k} 子指数<b style="color:${col(sub[k])}">${n0(sub[k])}</b>${lab(sub[k])}<span class=sub>发射台手续费分 ${n0(ch[k].s)} · 近3日均 ${f(ch[k].rec)} / 基线 ${f(ch[k].base)} · 数据截至 ${new Date(LL[k].days[ch[k].i]*1e3).toISOString().slice(5,10)} UTC</span></div>`).join('');
- document.getElementById('ocomp').innerHTML=`<b>综合指数计算</b>：综合 = 40% 发射台活跃度 + 60% pump.fun 指数。发射台活跃度 = 50 × （SOL+BSC+Robinhood 链上所有 Launchpad 类协议最近 3 个完整日的日均手续费）÷（此前 30 天日手续费中位数），截断 0–100。链子指数：SOL = 50% SOL 发射台手续费分 + 50% pump.fun 指数；BSC / Robinhood = 70% 该链发射台手续费分 + 30% GMGN 毕业速率分（Flap / Pons 当前每小时毕业数 ÷ 其 7 天中位数 × 50；基线不足时只用手续费分）。pump.fun 份额只作参考不计分。DefiLlama 为日数据（UTC），当天不计；若某个主要发射台最新一天为 0（数据延迟），自动回退到上一个完整日。`;
+ document.getElementById('ocomp').innerHTML=`<b>综合指数计算</b>：综合 = 30% 发射台活跃度 + 25% 交易机器人活跃度 + 45% pump.fun 指数（缺数据的分项不计入并按剩余权重归一）。交易机器人活跃度 = 50 × （DefiLlama「Trading App」+「Telegram Bot」类 7 天手续费前 3 的合计日手续费，最近 3 个完整日均值）÷（此前 30 天中位数），截断 0–100；前 3 名单为验证时的排名（Axiom、fomo Wallet、GMGN），表格下方显示每次运行的最新排名。发射台活跃度 = 50 × （SOL+BSC+Robinhood 链上所有 Launchpad 类协议最近 3 个完整日的日均手续费）÷（此前 30 天日手续费中位数），截断 0–100。链子指数：SOL = 50% SOL 发射台手续费分 + 50% pump.fun 指数；BSC / Robinhood = 70% 该链发射台手续费分 + 30% GMGN 毕业速率分（Flap / Pons 当前每小时毕业数 ÷ 其 7 天中位数 × 50；基线不足时只用手续费分）。pump.fun 份额只作参考不计分。DefiLlama 为日数据（UTC），当天不计；若某个主要发射台最新一天为 0（数据延迟），自动回退到上一个完整日。`;
  // 发射台表
  let t='<tr><th>链</th><th>发射台</th><th>最新日手续费</th><th>7 天手续费</th><th>环比前 7 天</th><th>占该链发射台</th><th>GMGN 毕业/小时</th><th>GMGN 新币/小时</th><th>干净占比</th><th>聪明钱参与</th><th>近 30 天走势</th></tr>';
  Object.keys(CL).forEach(k=>{const c=LL[k];if(!c)return;const i=ch[k].i;Object.entries(c.protos).forEach(([n,a])=>{

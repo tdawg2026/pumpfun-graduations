@@ -37,3 +37,22 @@ def fetch(days=60):
         ser['rank7d']=sorted([[p['name'],round(p.get('total7d') or 0)] for p in d['protocols'] if p.get('category')=='Launchpad'],key=lambda x:-x[1])[:8]
         out[k]=ser; time.sleep(1)
     return out
+
+BOT_CATS=('Telegram Bot','Trading App')
+def bots(days=60,top=3):
+    """Trading bots/terminals: rank by 7d fees across both categories, then per-protocol daily fees (all chains)."""
+    ov=get('https://api.llama.fi/overview/fees?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true&dataType=dailyFees')
+    P=sorted([p for p in ov['protocols'] if p.get('category') in BOT_CATS],key=lambda p:-(p.get('total7d') or 0))
+    rank=[[p['name'],p.get('category'),round(p.get('total7d') or 0)] for p in P[:8]]
+    tot7=sum(p.get('total7d') or 0 for p in P)
+    today=int(time.time())//86400*86400; out={'rank':rank,'sector7d':round(tot7),'protos':{}}
+    for p in P[:top]:
+        time.sleep(1); s=get(f"https://api.llama.fi/summary/fees/{p['slug']}?dataType=dailyFees")
+        ch=[[t,v] for t,v in s.get('totalDataChart',[]) if t<today][-days:]
+        mix={}
+        for t,x in s.get('totalDataChartBreakdown',[])[-31:-1]:
+            for c,v in x.items(): mix[c]=mix.get(c,0)+(sum(v.values()) if isinstance(v,dict) else v)
+        tm=sum(mix.values()) or 1
+        out['protos'][p['name']]={'cat':p.get('category'),'days':[a for a,_ in ch],'v':[round(b) for _,b in ch],
+            'mix':sorted([[c,round(v/tm,3)] for c,v in mix.items()],key=lambda x:-x[1])[:4]}
+    return out
