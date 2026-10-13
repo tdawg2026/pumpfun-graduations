@@ -15,3 +15,15 @@ def trenches():
 def num(v):
     try: return float(v)
     except Exception: return v
+
+LPS=[('SOL','sol','stonkfun','StonkFun'),('SOL','sol','meteora_virtual_curve','Meteora DBC'),
+     ('BSC','bsc','flap','Flap'),('Robinhood','robinhood','pons','Pons')]
+def trench(chain,plat):
+    p=subprocess.run([CLI,'market','trenches','--chain',chain,'--type','completed','--type','new_creation',
+                      '--launchpad-platform',plat,'--limit','80','--raw'],capture_output=True,text=True,timeout=60)
+    try: return json.loads(p.stdout)
+    except Exception: return None
+def clean(x):
+    v=lambda k:num(x.get(k)) if isinstance(num(x.get(k)),float) else 0
+    return (v('top_10_holder_rate')<0.3 and v('bundler_trader_amount_rate')<0.3 and v('rat_trader_amount_rate')<0.3 and
+            v('top70_sniper_hold_rate')<0.3 and v('dev_team_hold_rate')<0.1 and v('rug_ratio')<0.3 and not x.get('is_wash_trading'))

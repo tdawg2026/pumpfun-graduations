@@ -91,6 +91,30 @@ if G:
     print('gmgn completed',len(G.get('completed',[])),'new snapshots',got,'launch rate',L[-1] if L else None)
 else: print('gmgn failed',err)
 L=[x for x in L if x['ts']>=now-7*86400]; json.dump(L,open(LP,'w'))
+# other launchpads: GMGN trenches (1 call each, weight 2) -> graduates de-duplicated by address
+KP=f'{D}/data/launchpads.json'; K=json.load(open(KP)) if os.path.exists(KP) else {}
+for ck,chain,plat,lab in gmgn.LPS:
+    time.sleep(2.5); r=gmgn.trench(chain,plat); calls['gmgn']+=1
+    e=K.setdefault(lab,{'chain':ck,'grads':{},'launch':[]})
+    if not r: print('gmgn',lab,'failed'); continue
+    for x in r.get('completed',[]):
+        if x.get('complete_timestamp') and x['address'] not in e['grads']:
+            e['grads'][x['address']]=[x['complete_timestamp'],int(gmgn.clean(x)),int((gmgn.num(x.get('smart_degen_count')) or 0)>0),
+                                      round(float(x.get('usd_market_cap') or 0)),x.get('symbol')]
+    ct=[x['complete_timestamp'] for x in r.get('completed',[]) if x.get('complete_timestamp')]
+    if len(ct)>=5 and max(ct)>min(ct):
+        win=[t for t in ct if t>=now-86400]  # rate over last 24h if list covers it, else over list span
+        rate=len(win)/24 if min(ct)<now-86400 else (len(ct)-1)*3600/(max(ct)-min(ct))
+        e.setdefault('grate',[]).append([now,round(rate,2)]); e['grate']=[x for x in e['grate'] if x[0]>=now-7*86400]
+    nc=[x['created_timestamp'] for x in r.get('new_creation',[]) if x.get('created_timestamp')]
+    if len(nc)>=10 and max(nc)>min(nc): e['launch'].append([now,round((len(nc)-1)*3600/(max(nc)-min(nc)),1)])
+    e['grads']={a:v for a,v in e['grads'].items() if v[0]>=now-7*86400}; e['launch']=[x for x in e['launch'] if x[0]>=now-7*86400]
+    print('gmgn',lab,'grads',len(r.get('completed',[])),'stored',len(e['grads']))
+json.dump(K,open(KP,'w'))
+# DefiLlama launchpad fees (3-8 calls)
+import llama
+try: json.dump({'updated':now,**llama.fetch()},open(f'{D}/data/llama.json','w')); calls['llama']=1
+except Exception as ex: print('llama failed',ex)
 cut=now-7*86400
 db={m:t for m,t in db.items() if (t.get('grad') or t['created'])>=cut}
 json.dump(db,open(DB+'.tmp','w')); os.replace(DB+'.tmp',DB)

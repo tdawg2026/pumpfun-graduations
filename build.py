@@ -15,7 +15,10 @@ rows=[{'m':t['mint'],'s':t.get('symbol') or '','n':(t.get('name') or '')[:40],'g
        'a':t.get('ath_mcap'),'c':t.get('mcap'),'f':t.get('first_seen'),'h':t.get('holders_now'),'ha':t.get('holders_at'),'q':q(t.get('gm'))} for t in db]
 LP=f'{D}/data/launches.json'
 L=json.load(open(LP)) if os.path.exists(LP) else []
-data=json.dumps({'rows':rows,'updated':meta['updated'],'launch':L},separators=(',',':'))
+LL=json.load(open(f'{D}/data/llama.json')) if os.path.exists(f'{D}/data/llama.json') else {}
+KP=json.load(open(f'{D}/data/launchpads.json')) if os.path.exists(f'{D}/data/launchpads.json') else {}
+for e in KP.values(): e['g']=list(e.pop('grads',{}).values())
+data=json.dumps({'ll':LL,'lp':KP,'rows':rows,'updated':meta['updated'],'launch':L},separators=(',',':'))
 html=r'''<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>pump.fun 每小时毕业代币</title><style>
 body{background:#0d1117;color:#e6edf3;font:14px -apple-system,"PingFang SC",sans-serif;margin:0;padding:16px;max-width:1200px;margin:auto}
@@ -25,15 +28,18 @@ table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:5px 8px;b
 th{cursor:pointer;color:#8b949e;position:sticky;top:0;background:#161b22}td:first-child,th:first-child{text-align:left}a{color:#58a6ff;text-decoration:none}
 .kpi{display:flex;gap:10px;flex-wrap:wrap}.kpi div{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px 12px}.kpi b{display:block;font-size:18px}
 #chart,#trend{width:100%;height:220px}.big{font-size:32px!important}.scroll{max-height:520px;overflow:auto}.note{color:#8b949e;font-size:12px;line-height:1.6}</style></head><body>
-<h1>pump.fun 每小时内盘打满（毕业）代币</h1><div class="sub">时间均为 UTC+7 · 最后更新：<span id="upd"></span></div>
-<div class="card"><b>Meme 情绪指数</b> <span class="sub">基于 pump.fun 毕业数量与质量，对比 7 天基线</span>
+<h1>Meme 情绪看板 · pump.fun 毕业与发射台</h1><div class="sub">时间均为 UTC+7 · 最后更新：<span id="upd"></span></div>
+<div class="card"><b>综合 Meme 情绪指数</b> <span class="sub">发射台活跃度（DefiLlama，SOL/BSC/Robinhood）+ pump.fun 数量与质量（本站 + GMGN）</span>
+<div class="kpi" id="overall" style="margin-top:10px"></div><div class="kpi" id="chains" style="margin-top:10px"></div><div class="note" id="ocomp"></div></div>
+<div class="card"><b>发射台对比</b> <span class="sub">每条链除 pump.fun 外手续费前 2 的发射台（DefiLlama 7 天手续费排名）</span><div class="scroll"><table id="lpt"></table></div></div>
+<div class="card"><b>pump.fun 情绪指数</b> <span class="sub">基于 pump.fun 毕业数量与质量，对比 7 天基线</span>
 <div class="kpi" id="senti" style="margin-top:10px"></div><svg id="trend"></svg><div class="note" id="comp"></div></div>
 <div class="card"><button data-h="24" class="on">24 小时</button> <button data-h="168">7 天</button>
 <div class="kpi" id="kpi" style="margin-top:10px"></div><svg id="chart"></svg></div>
 <div class="card"><b>每小时汇总</b><div class="scroll"><table id="sum"></table></div></div>
 <div class="card"><b>优质毕业代币（近 24 小时）</b> <span class="sub">GMGN 干净 + 按 ATH 市值排序</span><div class="scroll"><table id="topq"></table></div></div>
 <div class="card"><b>毕业代币列表</b> <span class="sub">点击表头排序</span><div class="scroll"><table id="tok"></table></div></div>
-<div class="card note">数据说明：代币列表、ATH 市值和当前市值来自 pump.fun 前端接口（frontend-api-v3，非官方，单次最多翻 1000 条，所以首次抓取只能完整覆盖约最近 20 小时，更早的小时数偏少；之后每次运行会累积，最多保留 7 天）。毕业时间取 GeckoTerminal 上 PumpSwap 池子的创建时间。ATH 市值是 pump.fun 记录的历史最高（含内盘阶段），按 10 亿总供应计算，美元计价；流动性很薄的代币可能被刷高。持有人数通过 Helius RPC（getProgramAccountsV2）统计余额大于 0 的账户数（含池子/合约账户），每个代币只查一次、不再更新：新毕业代币一般在毕业后 1 小时内查询，数字下方为查询时间（UTC+7）。早期已收录的代币查询时间可能晚于毕业较久。质量数据来自 GMGN（market trenches，Pump.fun 已毕业列表），每个代币只在毕业后约 1–2 小时内取一次快照：前 10 持仓、捆绑、老鼠仓、狙击、开发者持仓、跑路风险、聪明钱/KOL 数。“干净”= 前10&lt;30%、捆绑&lt;30%、老鼠仓&lt;30%、狙击&lt;30%、开发者&lt;10%、跑路风险&lt;0.3 且无刷量。GMGN 数据从 2026-10-13 起收集，早期代币无质量数据；发射数为每次运行时用 GMGN 最新 60 个新币的时间跨度估算的速率。页面由 GitHub Actions 每小时自动更新。</div>
+<div class="card note">数据说明：代币列表、ATH 市值和当前市值来自 pump.fun 前端接口（frontend-api-v3，非官方，单次最多翻 1000 条，所以首次抓取只能完整覆盖约最近 20 小时，更早的小时数偏少；之后每次运行会累积，最多保留 7 天）。毕业时间取 GeckoTerminal 上 PumpSwap 池子的创建时间。ATH 市值是 pump.fun 记录的历史最高（含内盘阶段），按 10 亿总供应计算，美元计价；流动性很薄的代币可能被刷高。持有人数通过 Helius RPC（getProgramAccountsV2）统计余额大于 0 的账户数（含池子/合约账户），每个代币只查一次、不再更新：新毕业代币一般在毕业后 1 小时内查询，数字下方为查询时间（UTC+7）。早期已收录的代币查询时间可能晚于毕业较久。质量数据来自 GMGN（market trenches，Pump.fun 已毕业列表），每个代币只在毕业后约 1–2 小时内取一次快照：前 10 持仓、捆绑、老鼠仓、狙击、开发者持仓、跑路风险、聪明钱/KOL 数。“干净”= 前10&lt;30%、捆绑&lt;30%、老鼠仓&lt;30%、狙击&lt;30%、开发者&lt;10%、跑路风险&lt;0.3 且无刷量。GMGN 数据从 2026-10-13 起收集，早期代币无质量数据；发射数为每次运行时用 GMGN 最新 60 个新币的时间跨度估算的速率。发射台数据来自 DefiLlama 免费接口（Launchpad 类协议的链上日手续费，按链拆分；Pons 为 V1+V2 合计；BSC 第二名 Binance Alpha 并非 meme 发射台但按数据排名纳入，GMGN 无对应数据）；其他发射台的毕业/新币速率和质量来自 GMGN trenches（StonkFun、Meteora DBC、Flap、Pons；NOXA Fun 与 Binance Alpha 在 GMGN 无数据），Meteora DBC 包含所有基于该曲线的发射台。页面由 GitHub Actions 每小时自动更新。</div>
 <script>const D=__DATA__;
 const f=v=>v==null?'-':v>=1e9?'$'+(v/1e9).toFixed(2)+'B':v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+(v/1e3).toFixed(1)+'K':'$'+v.toFixed(0);
 const tz=7*3600,hk=t=>Math.floor((t+tz)/3600),hs=h=>{const d=new Date(h*3600e3);return (d.getUTCMonth()+1)+'/'+d.getUTCDate()+' '+String(d.getUTCHours()).padStart(2,'0')+':00'};
@@ -68,6 +74,33 @@ function metrics(end){ // end: unix sec. 计数类用 [end-24h,end)，ATH 类用
  const L=D.launch.filter(x=>x.ts>end-86400&&x.ts<=end),A=a.map(r=>r.a||0);
  return {grad:c.length,launch:L.length?med(L.map(x=>x.rate)):null,ath1m:A.length?A.filter(x=>x>1e6).length/A.length:null,athmed:med(A),
   clean:g.length>=10?g.filter(r=>r.q[8]).length/g.length:null,smart:g.length>=10?g.filter(r=>r.q[5]>0).length/g.length:null,n:c.length,ng:g.length}}
+
+// ===== 发射台层 & 综合指数 =====
+const CL={SOL:'Solana',BSC:'BSC',Robinhood:'Robinhood Chain'},clip=v=>Math.max(0,Math.min(100,v)),sum=a=>a.reduce((x,y)=>x+y,0);
+function lastFull(c){const P=Object.values(c.protos);let i=c.days.length-1;while(i>0&&P.some(p=>{const nz=p.slice(-14).filter(x=>x>0).length;return nz>=10&&p[i]==0}))i--;return i}
+function feeScore(c){const i=lastFull(c),rec=sum(c.total.slice(i-2,i+1))/3,base=med(c.total.slice(Math.max(0,i-32),i-2));return {i,rec,base,s:base?clip(50*rec/base):null}}
+function lpRate(e,key){const a=(e[key]||[]).map(x=>x[1]);return a.length?{now:a[a.length-1],base:med(a)}:null}
+function overall(P){const LL=D.ll,ch={};let rec=0,base=0;
+ Object.keys(CL).forEach(k=>{if(!LL[k])return;const fs=feeScore(LL[k]);ch[k]=fs;rec+=fs.rec;base+=fs.base});
+ const A=base?clip(50*rec/base):null;
+ // pump.fun 份额（近 7 天）
+ const s7=(a,i)=>sum(a.slice(i-6,i+1)),sol=LL.SOL,ip=sol?lastFull(sol):0;let tot7=0,tot7p=0;Object.keys(ch).forEach(k=>{const c=LL[k],i=ch[k].i;tot7+=s7(c.total,i);tot7p+=s7(c.total,i-7)});
+ const pumpShare=sol?s7(sol.protos['pump.fun'],ip)/tot7:null,pumpShareP=sol?s7(sol.protos['pump.fun'],ip-7)/tot7p:null;
+ const O=(A!=null&&P!=null)?0.4*A+0.6*P:(A??P);
+ const sub={};Object.keys(ch).forEach(k=>{const fs=ch[k].s;if(k=='SOL'){sub[k]=P!=null?0.5*fs+0.5*P:fs;return}
+  const e=Object.values(D.lp).find(e=>e.chain==k),g=e&&lpRate(e,'grate');const gs=g&&g.base?clip(50*g.now/g.base):null;sub[k]=gs!=null?0.7*fs+0.3*gs:fs});
+ const lab=v=>v==null?'-':v<40?'冷淡 🥶':v<=60?'中性 😐':'火热 🔥',col=v=>v<40?'#58a6ff':v<=60?'#d29922':'#f85149',n0=v=>v==null?'-':v.toFixed(0);
+ document.getElementById('overall').innerHTML=`<div>综合指数<b class="big" style="color:${col(O)}">${n0(O)}</b>${lab(O)}</div><div>发射台活跃度<b>${n0(A)}</b><span class=sub>3 条链发射台日均手续费 ${f(rec)} · 基线 ${f(base)}</span></div><div>pump.fun 指数<b>${n0(P)}</b><span class=sub>见下方 pump.fun 情绪指数</span></div><div>pump.fun 手续费份额（7天）<b>${pumpShare==null?'-':(pumpShare*100).toFixed(1)+'%'}</b><span class=sub>前 7 天 ${pumpShareP==null?'-':(pumpShareP*100).toFixed(1)+'%'}（仅展示，不计分）</span></div>`;
+ document.getElementById('chains').innerHTML=Object.keys(ch).map(k=>`<div>${k} 子指数<b style="color:${col(sub[k])}">${n0(sub[k])}</b>${lab(sub[k])}<span class=sub>发射台手续费分 ${n0(ch[k].s)} · 近3日均 ${f(ch[k].rec)} / 基线 ${f(ch[k].base)} · 数据截至 ${new Date(LL[k].days[ch[k].i]*1e3).toISOString().slice(5,10)} UTC</span></div>`).join('');
+ document.getElementById('ocomp').innerHTML=`<b>综合指数计算</b>：综合 = 40% 发射台活跃度 + 60% pump.fun 指数。发射台活跃度 = 50 × （SOL+BSC+Robinhood 链上所有 Launchpad 类协议最近 3 个完整日的日均手续费）÷（此前 30 天日手续费中位数），截断 0–100。链子指数：SOL = 50% SOL 发射台手续费分 + 50% pump.fun 指数；BSC / Robinhood = 70% 该链发射台手续费分 + 30% GMGN 毕业速率分（Flap / Pons 当前每小时毕业数 ÷ 其 7 天中位数 × 50；基线不足时只用手续费分）。pump.fun 份额只作参考不计分。DefiLlama 为日数据（UTC），当天不计；若某个主要发射台最新一天为 0（数据延迟），自动回退到上一个完整日。`;
+ // 发射台表
+ let t='<tr><th>链</th><th>发射台</th><th>最新日手续费</th><th>7 天手续费</th><th>环比前 7 天</th><th>占该链发射台</th><th>GMGN 毕业/小时</th><th>GMGN 新币/小时</th><th>干净占比</th><th>聪明钱参与</th><th>近 30 天走势</th></tr>';
+ Object.keys(CL).forEach(k=>{const c=LL[k];if(!c)return;const i=ch[k].i;Object.entries(c.protos).forEach(([n,a])=>{
+  const e=D.lp[n],g=e&&lpRate(e,'grate'),l=e&&lpRate(e,'launch'),G=e?e.g:[],w7=s7(a,i),p7=s7(a,i-7),sh=w7/s7(c.total,i);
+  const sp=a.slice(-30),mx=Math.max(1,...sp),line=sp.map((v,j)=>`${j*4},${20-18*v/mx}`).join(' ');
+  t+=`<tr><td>${k}</td><td><b>${n}</b></td><td>${f(a[i])}</td><td>${f(w7)}</td><td style="color:${w7>=p7?'#3fb950':'#f85149'}">${p7?((w7/p7-1)*100).toFixed(0)+'%':'-'}</td><td>${(sh*100).toFixed(1)}%</td><td>${g?g.now.toFixed(1):(n=='pump.fun'?(D.rows.filter(r=>r.g>=D.updated-86400).length/24).toFixed(1):'-')}</td><td>${l?Math.round(l.now):(n=='pump.fun'&&D.launch.length?Math.round(D.launch[D.launch.length-1].rate):'-')}</td><td>${G.length>=10?Math.round(100*G.filter(x=>x[1]).length/G.length)+'%':(n=='pump.fun'?pct(D.rows.filter(r=>r.g>=D.updated-86400),r=>r.q[8]):'-')}</td><td>${G.length>=10?Math.round(100*G.filter(x=>x[2]).length/G.length)+'%':(n=='pump.fun'?pct(D.rows.filter(r=>r.g>=D.updated-86400),r=>r.q[5]>0):'-')}</td><td><svg width="120" height="22"><polyline fill="none" stroke="#58a6ff" stroke-width="1.5" points="${line}"/></svg></td></tr>`})});
+ document.getElementById('lpt').innerHTML=t}
+
 function senti(){const end=D.updated,first=Math.min(...D.rows.map(r=>r.f||D.updated))-20*3600,pts=[];
  for(let e=Math.floor(end/3600)*3600;e>=first+86400;e-=3600)pts.unshift([e,metrics(e)]);
  const now=metrics(end),base={};W.forEach(([k])=>{base[k]=med(pts.map(p=>p[1][k]).filter(x=>x!=null&&x>0))});
@@ -81,6 +114,7 @@ function senti(){const end=D.updated,first=Math.min(...D.rows.map(r=>r.f||D.upda
   ser.forEach((p,i)=>{if(i%24==0)s+=`<text x="${x(i)}" y="215" fill="#8b949e" font-size="12">${hs(hk(p[0])).split(' ')[0]}</text>`})}
  s+='<text x="4" y="14" fill="#8b949e" font-size="12">指数走势（每小时，滚动 24h）· 黄色带=中性 40–60</text></svg>';document.getElementById('trend').outerHTML=s;
  document.getElementById('comp').innerHTML=`<b>计算方法</b>：每个分项 = 50 × 当前值 ÷ 7 天基线（基线为过去每小时滚动 24h 值的中位数），截断在 0–100；指数 = 各分项加权平均（${W.map(([k,n,w])=>n+' '+(w*100)+'%').join('，')}），缺数据的分项不计入并按剩余权重归一。等于基线时为 50；基线只用数据完整覆盖的时段（从首次采集前约 20 小时起），会随运行逐步积累到 7 天；&lt;40 冷淡，40–60 中性，&gt;60 火热。计数类用最近 24 小时毕业的代币；ATH 类用 2–26 小时前毕业的代币（给代币时间走出高点）。GMGN 类分项需当期至少 10 个有快照的代币（当前 ${now.ng} 个）。`;
+ overall(S.v);
  const tq=D.rows.filter(r=>r.g>=end-86400&&r.q&&r.q[8]).sort((a,b)=>(b.a||0)-(a.a||0)).slice(0,20);
  document.getElementById('topq').innerHTML='<tr><th>代币</th><th>毕业时间</th><th>ATH 市值</th><th>当前市值</th><th>持有人</th><th>GMGN</th></tr>'+tq.map(r=>`<tr><td><b>${esc(r.s)}</b> <span class=sub>${esc(r.n)}</span></td><td>${ts(r.g)}</td><td>${f(r.a)}</td><td>${f(r.c)}</td><td>${r.h??'-'}</td><td>${qcell(r)}</td></tr>`).join('')||'<tr><td>暂无 GMGN 数据</td></tr>'}
 senti();</script></body></html>'''
