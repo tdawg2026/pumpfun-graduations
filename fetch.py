@@ -25,12 +25,15 @@ def get(u,k):
         time.sleep(3)
 db=json.load(open(DB)) if os.path.exists(DB) else {}
 now=int(time.time())
+OLD0=json.load(open(f'{D}/data/old.json')) if os.path.exists(f'{D}/data/old.json') else {}
 for s in ('created_timestamp','last_trade_timestamp'):
     for o in range(0,1000,50):
         rows=get(PF.format(o=o,s=s),'pump') or []
         for c in rows:
             if not c.get('complete'): continue
-            m=c['mint']; t=db.setdefault(m,{'mint':m,'first_seen':now})
+            m=c['mint']
+            if m in OLD0: continue
+            t=db.setdefault(m,{'mint':m,'first_seen':now})
             t.update(name=c.get('name'),symbol=c.get('symbol'),pool=c.get('pump_swap_pool') or c.get('pool_address'),
                 created=c['created_timestamp']//1000,ath_mcap=c.get('ath_market_cap'),
                 ath_ts=(c.get('ath_market_cap_timestamp') or 0)//1000 or None,
@@ -49,6 +52,11 @@ for i in range(0,len(need),30):
             t['gt_fdv']=float(a['fdv_usd']) if a.get('fdv_usd') else None
         else: t['gt_miss']=t.get('gt_miss',0)+1
     time.sleep(2.2)
+cut=now-7*86400
+OP=f'{D}/data/old.json'; OLD=json.load(open(OP)) if os.path.exists(OP) else {}
+for m,t in list(db.items()):
+    if (t.get('grad') or t['created'])<cut: OLD[m]=now; del db[m]
+OLD={m:x for m,x in OLD.items() if x>=now-14*86400}; json.dump(OLD,open(OP,'w'))
 # holders: queried ONCE per token (only tokens without a value yet). Helius getProgramAccountsV2.
 import holders as HL
 calls['rpc']=0
