@@ -34,7 +34,7 @@ for s in ('created_timestamp','last_trade_timestamp'):
             t.update(name=c.get('name'),symbol=c.get('symbol'),pool=c.get('pump_swap_pool') or c.get('pool_address'),
                 created=c['created_timestamp']//1000,ath_mcap=c.get('ath_market_cap'),
                 ath_ts=(c.get('ath_market_cap_timestamp') or 0)//1000 or None,
-                mcap=c.get('usd_market_cap'),updated=now,source='pump.fun v3')
+                mcap=c.get('usd_market_cap'),tprog=c.get('token_program'),updated=now,source='pump.fun v3')
         if len(rows)<50: break
         time.sleep(1)
 # graduation time via GeckoTerminal (only tokens missing it), 30 pools/call, <=28 calls/min
@@ -49,8 +49,24 @@ for i in range(0,len(need),30):
             t['gt_fdv']=float(a['fdv_usd']) if a.get('fdv_usd') else None
         else: t['gt_miss']=t.get('gt_miss',0)+1
     time.sleep(2.2)
+# holders via Solana public RPC getProgramAccounts (non-zero balances). Budget per run, prioritized + rotation.
+import holders as HL
+BUDGET=600; calls['rpc']=0
+vals=list(db.values())
+fresh=[t for t in vals if (t.get('grad') or t['created'])>=now-86400]
+rest=sorted([t for t in vals if t not in fresh],key=lambda t:-(t.get('mcap') or 0))
+top=rest[:150]; rot=sorted(rest[150:],key=lambda t:t.get('holders_at') or 0)
+order=[];seen=set()
+for t in sorted(fresh,key=lambda t:t.get('holders_at') or 0)+top+rot:
+    if t['mint'] not in seen: seen.add(t['mint']); order.append(t)
+for t in order[:BUDGET]:
+    h=HL.holders(t['mint'],t.get('tprog') or HL.PROG['2022']); calls['rpc']+=1
+    if h is None: continue
+    t['holders_now']=h; t['holders_at']=now
+    if h>=(t.get('holders_max') or -1): t['holders_max']=h; t['holders_max_at']=now
+    time.sleep(0.15)
 cut=now-7*86400
 db={m:t for m,t in db.items() if (t.get('grad') or t['created'])>=cut}
 json.dump(db,open(DB+'.tmp','w')); os.replace(DB+'.tmp',DB)
 json.dump({'updated':now,'calls':calls,'n':len(db)},open(f'{D}/data/meta.json','w'))
-print('tokens',len(db),'with grad time',sum(1 for t in db.values() if t.get('grad')),'calls',calls)
+print('holders checked',calls['rpc']);print('tokens',len(db),'with grad time',sum(1 for t in db.values() if t.get('grad')),'calls',calls)

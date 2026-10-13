@@ -3,7 +3,7 @@ import json,os,time
 D=os.path.dirname(os.path.abspath(__file__))
 db=list(json.load(open(f'{D}/data/tokens.json')).values()); meta=json.load(open(f'{D}/data/meta.json'))
 rows=[{'m':t['mint'],'s':t.get('symbol') or '','n':(t.get('name') or '')[:40],'g':t.get('grad') or t['created'],
-       'a':t.get('ath_mcap'),'c':t.get('mcap'),'f':t.get('first_seen')} for t in db]
+       'a':t.get('ath_mcap'),'c':t.get('mcap'),'f':t.get('first_seen'),'h':t.get('holders_now'),'hm':t.get('holders_max'),'ha':t.get('holders_at')} for t in db]
 data=json.dumps({'rows':rows,'updated':meta['updated']},separators=(',',':'))
 html=r'''<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>pump.fun 每小时毕业代币</title><style>
@@ -19,7 +19,7 @@ th{cursor:pointer;color:#8b949e;position:sticky;top:0;background:#161b22}td:firs
 <div class="kpi" id="kpi" style="margin-top:10px"></div><svg id="chart"></svg></div>
 <div class="card"><b>每小时汇总</b><div class="scroll"><table id="sum"></table></div></div>
 <div class="card"><b>毕业代币列表</b> <span class="sub">点击表头排序</span><div class="scroll"><table id="tok"></table></div></div>
-<div class="card note">数据说明：代币列表、ATH 市值和当前市值来自 pump.fun 前端接口（frontend-api-v3，非官方，单次最多翻 1000 条，所以首次抓取只能完整覆盖约最近 20 小时，更早的小时数偏少；之后每次运行会累积，最多保留 7 天）。毕业时间取 GeckoTerminal 上 PumpSwap 池子的创建时间。ATH 市值是 pump.fun 记录的历史最高（含内盘阶段），按 10 亿总供应计算，美元计价；流动性很薄的代币可能被刷高。未自动更新，需手动运行 fetch.py + build.py。</div>
+<div class="card note">数据说明：代币列表、ATH 市值和当前市值来自 pump.fun 前端接口（frontend-api-v3，非官方，单次最多翻 1000 条，所以首次抓取只能完整覆盖约最近 20 小时，更早的小时数偏少；之后每次运行会累积，最多保留 7 天）。毕业时间取 GeckoTerminal 上 PumpSwap 池子的创建时间。ATH 市值是 pump.fun 记录的历史最高（含内盘阶段），按 10 亿总供应计算，美元计价；流动性很薄的代币可能被刷高。持有人数通过 Solana 公共 RPC（getProgramAccounts）统计余额大于 0 的账户数，含池子/合约账户；每次运行最多查 600 个（优先最近 24 小时毕业和高市值代币，其余轮流），所以部分代币的数字可能是几小时前的。“观测最高持有人”只是我们开始观测后看到的最大值，观测之前的峰值未知。页面由 GitHub Actions 每小时自动更新。</div>
 <script>const D=__DATA__;
 const f=v=>v==null?'-':v>=1e9?'$'+(v/1e9).toFixed(2)+'B':v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+(v/1e3).toFixed(1)+'K':'$'+v.toFixed(0);
 const tz=7*3600,hk=t=>Math.floor((t+tz)/3600),hs=h=>{const d=new Date(h*3600e3);return (d.getUTCMonth()+1)+'/'+d.getUTCDate()+' '+String(d.getUTCHours()).padStart(2,'0')+':00'};
@@ -35,13 +35,13 @@ function render(){const now=hk(D.updated),from=now-H+1,rs=D.rows.filter(r=>hk(r.
  hs_.forEach((h,i)=>{const bh=(cnt[i]/mx)*(Hh-30);s+=`<rect x="${i*bw+1}" y="${Hh-20-bh}" width="${Math.max(1,bw-2)}" height="${bh}" fill="#2ea043"><title>${hs(h)}：${cnt[i]} 个</title></rect>`;
   if(H==24||i%24==0)s+=`<text x="${i*bw+bw/2}" y="${Hh-5}" fill="#8b949e" font-size="${H==24?11:12}" text-anchor="middle">${H==24?hs(h).slice(-5,-3):hs(h).split(' ')[0]}</text>`});
  s+=`<text x="4" y="12" fill="#8b949e" font-size="12">最高 ${mx}/小时</text>`;document.getElementById('chart').outerHTML=s.replace('<svg','<svg id="chart"')+'</svg>';
- let t='<tr><th>小时</th><th>数量</th><th>ATH 中位数</th><th>ATH 最高</th><th>&gt;$1M</th><th>&gt;$10M</th></tr>';
- hs_.slice().reverse().forEach(h=>{const a=by[h].map(r=>r.a||0);t+=`<tr><td>${hs(h)}</td><td>${a.length}</td><td>${f(med(a))}</td><td>${a.length?f(Math.max(...a)):'-'}</td><td>${a.filter(x=>x>1e6).length}</td><td>${a.filter(x=>x>1e7).length}</td></tr>`});
+ let t='<tr><th>小时</th><th>数量</th><th>ATH 中位数</th><th>ATH 最高</th><th>&gt;$1M</th><th>&gt;$10M</th><th>持有人中位数</th></tr>';
+ hs_.slice().reverse().forEach(h=>{const a=by[h].map(r=>r.a||0);t+=`<tr><td>${hs(h)}</td><td>${a.length}</td><td>${f(med(a))}</td><td>${a.length?f(Math.max(...a)):'-'}</td><td>${a.filter(x=>x>1e6).length}</td><td>${a.filter(x=>x>1e7).length}</td><td>${med(by[h].map(r=>r.h).filter(x=>x!=null))??'-'}</td></tr>`});
  document.getElementById('sum').innerHTML=t;
  rs.sort((x,y)=>{const a=x[sk]??-1,b=y[sk]??-1;return (a>b?1:a<b?-1:0)*sd});
- const cols=[['s','代币'],['g','毕业时间'],['a','ATH 市值'],['c','当前市值']];
+ const cols=[['s','代币'],['g','毕业时间'],['a','ATH 市值'],['c','当前市值'],['h','当前持有人'],['hm','观测最高持有人']];
  t='<tr>'+cols.map(([k,n])=>`<th data-k="${k}">${n}${sk==k?(sd>0?' ▲':' ▼'):''}</th>`).join('')+'<th>链接</th></tr>';
- rs.forEach(r=>{t+=`<tr><td title="${r.m}"><b>${esc(r.s)}</b> <span class="sub">${esc(r.n)}</span></td><td>${ts(r.g)}</td><td>${f(r.a)}</td><td>${f(r.c)}</td><td><a href="https://pump.fun/coin/${r.m}" target="_blank">pump</a> · <a href="https://dexscreener.com/solana/${r.m}" target="_blank">dex</a></td></tr>`});
+ rs.forEach(r=>{t+=`<tr><td title="${r.m}"><b>${esc(r.s)}</b> <span class="sub">${esc(r.n)}</span></td><td>${ts(r.g)}</td><td>${f(r.a)}</td><td>${f(r.c)}</td><td>${r.h??'-'}</td><td>${r.hm??'-'}</td><td><a href="https://pump.fun/coin/${r.m}" target="_blank">pump</a> · <a href="https://dexscreener.com/solana/${r.m}" target="_blank">dex</a></td></tr>`});
  const tb=document.getElementById('tok');tb.innerHTML=t;tb.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;sd=sk==k?-sd:-1;sk=k;render()})}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 document.querySelectorAll('button').forEach(b=>b.onclick=()=>{document.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');H=+b.dataset.h;render()});render();</script></body></html>'''
