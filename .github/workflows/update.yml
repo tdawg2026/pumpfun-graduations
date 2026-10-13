@@ -6,6 +6,7 @@ permissions: {contents: write, pages: write, id-token: write}
 jobs:
   run:
     runs-on: ubuntu-latest
+    environment: {name: github-pages}
     steps:
       - uses: actions/checkout@v4
       - run: curl -s -o /dev/null -w "pump.fun HTTP %{http_code}\n" "https://frontend-api-v3.pump.fun/coins?limit=1&complete=true&sort=created_timestamp&order=DESC"
