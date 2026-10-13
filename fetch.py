@@ -49,16 +49,11 @@ for i in range(0,len(need),30):
             t['gt_fdv']=float(a['fdv_usd']) if a.get('fdv_usd') else None
         else: t['gt_miss']=t.get('gt_miss',0)+1
     time.sleep(2.2)
-# holders. Tiered refresh to stay in Helius free tier (~1M credits/month):
-# graduated <6h: every run; 6-24h: every 2h; 1-7d: every 24h (dead tokens: holders_now<50 -> every 48h).
+# holders: queried ONCE per token (only tokens without a value yet). Helius getProgramAccountsV2.
 import holders as HL
 calls['rpc']=0
-def due(t):
-    age=now-(t.get('grad') or t['created']); last=t.get('holders_at') or 0
-    iv=3000 if age<6*3600 else 2*3600-600 if age<86400 else 86400-600
-    if age>=86400 and (t.get('holders_now') or 0)<50 and last: iv=2*86400-600
-    return now-last>=iv
-order=sorted([t for t in db.values() if due(t)],key=lambda t:-(t.get('grad') or t['created']))
+for t in db.values(): t.pop('holders_max',None); t.pop('holders_max_at',None)
+order=sorted([t for t in db.values() if t.get('holders_now') is None],key=lambda t:-(t.get('grad') or t['created']))
 t0=time.time();fails=0;LIMIT=1600
 for t in order[:LIMIT]:
     if time.time()-t0>900 or fails>=10:
@@ -67,9 +62,8 @@ for t in order[:LIMIT]:
     if h is None: fails+=1; continue
     fails=0
     t['holders_now']=h; t['holders_at']=now
-    if h>=(t.get('holders_max') or -1): t['holders_max']=h; t['holders_max_at']=now
     time.sleep(0.12 if HL.KEY else 0.15)
-print('holders due',len(order),'checked',calls['rpc'],'helius credits',HL.CREDITS,'mode','helius' if HL.KEY else 'public')
+print('holders missing',len(order),'checked',calls['rpc'],'helius credits',HL.CREDITS,'mode','helius' if HL.KEY else 'public')
 cut=now-7*86400
 db={m:t for m,t in db.items() if (t.get('grad') or t['created'])>=cut}
 json.dump(db,open(DB+'.tmp','w')); os.replace(DB+'.tmp',DB)
