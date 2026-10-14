@@ -22,7 +22,7 @@ def clean(gm):
     v=lambda k:gm.get(k) if isinstance(gm.get(k),(int,float)) else 0
     return int(v('top_10_holder_rate')<0.3 and v('bundler_trader_amount_rate')<0.3 and v('rat_trader_amount_rate')<0.3 and v('top70_sniper_hold_rate')<0.3
                and v('dev_team_hold_rate')<0.1 and v('rug_ratio')<0.3 and not gm.get('is_wash_trading'))
-def update(db,now,budget=600,maxcalls=250):
+def update(db,now,budget=480,maxcalls=200):
     P=load(); t0=time.time(); calls=0
     for m,t in db.items():
         if not t.get('pool') or not t.get('grad'): continue
@@ -35,7 +35,7 @@ def update(db,now,budget=600,maxcalls=250):
         if t.get('mcap'): e['now']=round(t['mcap'])
     # current liquidity for recent pools (<=8d), 30 per call
     def soon(e):
-        if e['g']>=now-48*3600: return True
+        if e['g']>=now-24*3600: return True
         return any(k not in e['cp'] and -3600<=now-(e['g']+s)<=7200 for k,s in CP)
     live=[e for e in P.values() if e['g']>=now-8*86400 and soon(e)]
     for i in range(0,len(live),30):
@@ -52,7 +52,7 @@ def update(db,now,budget=600,maxcalls=250):
     for m,e in P.items():
         miss=[(k,s) for k,s in CP if k not in e['cp'] and now>=e['g']+s]
         if miss and e.get('miss',0)<3: due.append((now-(e['g']+miss[0][1])>7200,-e['g'],m,miss))
-    due.sort()
+    due.sort(); t0=time.time(); calls=0  # checkpoints get their own budget
     done=0
     for late,_,m,miss in due:
         if time.time()-t0>budget or calls>=maxcalls: break
