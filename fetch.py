@@ -119,6 +119,9 @@ except Exception as ex: print('llama failed',ex)
 import history
 try: history.update(LLd,db,L,K,now); print('history days',len(history.load()))
 except Exception as ex: print('history failed',ex)
+import perf
+try: perf.update(db,now)
+except Exception as ex: print('perf failed',ex)
 cut=now-7*86400
 db={m:t for m,t in db.items() if (t.get('grad') or t['created'])>=cut}
 json.dump(db,open(DB+'.tmp','w')); os.replace(DB+'.tmp',DB)
