@@ -60,7 +60,7 @@ cov={'n':len(rows),'grad':sum(1 for t in db if t.get('grad')),'hold':sum(1 for t
  'liq48':[sum(1 for e in PERF.values() if e['g']>=now-48*3600 and e.get('liq_at')),sum(1 for e in PERF.values() if e['g']>=now-48*3600)],
  'perf_n':len(PERF),'perf_first':min([e['g'] for e in PERF.values()],default=None),
  'liq_at':max([e.get('liq_at',0) for e in PERF.values()],default=0),'llama':LL.get('updated'),'hist_days':len(HH),
- 'pump_days':sum(1 for r in HH.values() if r.get('src_pump')=='observed')}
+ 'degraded':meta.get('degraded',[]),'pump_days':sum(1 for r in HH.values() if r.get('src_pump')=='observed')}
 os.makedirs(f'{D}/public/data',exist_ok=True)
 for src in ('history/daily.json','history/daily.csv','perf.json'):
     if os.path.exists(f'{D}/data/{src}'): shutil.copy(f'{D}/data/{src}',f'{D}/public/data/'+os.path.basename(src))

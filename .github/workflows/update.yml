@@ -10,7 +10,8 @@ jobs:
     environment: {name: github-pages}
     steps:
       - uses: actions/checkout@v4
-      - run: curl -s -o /dev/null -w "pump.fun HTTP %{http_code}\n" "https://frontend-api-v3.pump.fun/coins?limit=1&complete=true&sort=created_timestamp&order=DESC"
+      - continue-on-error: true
+        run: curl -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/129.0" -o /dev/null -w "pump.fun HTTP %{http_code}\n" "https://frontend-api-v3.pump.fun/coins?limit=1&complete=true&sort=created_timestamp&order=DESC"
       - run: npm i -g gmgn-cli@1.6.6
       - run: python3 fetch.py && python3 build.py
         env: {HELIUS_API_KEY: "${{ secrets.HELIUS_API_KEY }}", GMGN_API_KEY: "${{ secrets.GMGN_API_KEY }}"}

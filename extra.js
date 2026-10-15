@@ -53,4 +53,5 @@ document.getElementById('rwin').onchange=rankTable;document.getElementById('liqm
   ['pump.fun 指数基线（小时）',window.NB>=24?'正常':'不足 24h',window.NB,U],
   ['每日历史记录',`${C.pump_days} 天 pump.fun 完整日`+(C.pump_days<30?' <span class=sub>⚠️ 分位需 ≥30 天</span>':''),C.hist_days,U]];
  document.getElementById('cov').innerHTML='<tr><th>指标</th><th>覆盖率</th><th>样本量</th><th>最后更新</th></tr>'+rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')+
+  ((C.degraded||[]).length?`<tr><td colspan=4>⚠️ 本次更新以下数据源失败，沿用旧数据/备用源：${C.degraded.join('、')}</td></tr>`:'')+
   `<tr><td colspan=4 class=sub>毕业后表现数据从 ${C.perf_first?ts(C.perf_first):'-'} 毕业的代币开始，共 ${C.perf_n} 个</td></tr>`})();

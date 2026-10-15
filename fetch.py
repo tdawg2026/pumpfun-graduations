@@ -6,17 +6,21 @@ D=os.path.dirname(os.path.abspath(__file__)); DB=f'{D}/data/tokens.json'
 PF='https://frontend-api-v3.pump.fun/coins?offset={o}&limit=50&sort={s}&order=DESC&includeNsfw=true&complete=true'
 GT='https://api.geckoterminal.com/api/v2/networks/solana/pools/multi/'
 calls={'pump':0,'gecko':0}
+DEG=[]  # degraded sources this run (shown in site coverage table)
+UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36'
+def warn(src,msg):
+    print('WARNING',src,msg); DEG.append(src) if src not in DEG else None
 def get(u,k):
     calls[k]+=1
     if k=='pump':
-        for i in range(5):
-            p=subprocess.run(['curl','-s','-m','30','-w','\n%{http_code}',u],capture_output=True,text=True)
+        for i in range(3):
+            p=subprocess.run(['curl','-s','-m','30','-A',UA,'-H','Origin: https://pump.fun','-H','Referer: https://pump.fun/','-H','Accept: application/json','-w','\n%{http_code}',u],capture_output=True,text=True)
             body,_,code=p.stdout.rpartition('\n')
             if code=='200': return json.loads(body)
             time.sleep(5*(i+1))
-        raise SystemExit(f'pump.fun failed HTTP {code}')
+        raise RuntimeError(f'pump.fun failed HTTP {code}')
     for i in range(4):
-        try: return json.load(urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':'Mozilla/5.0','Accept':'application/json'}),timeout=30))
+        try: return json.load(urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':UA,'Accept':'application/json'}),timeout=30))
         except urllib.error.HTTPError as e:
             if e.code==429: time.sleep(20); continue
             if i==3: raise
@@ -26,9 +30,13 @@ def get(u,k):
 db=json.load(open(DB)) if os.path.exists(DB) else {}
 now=int(time.time())
 OLD0=json.load(open(f'{D}/data/old.json')) if os.path.exists(f'{D}/data/old.json') else {}
+pump_ok=True
 for s in ('created_timestamp','last_trade_timestamp'):
+    if not pump_ok: break
     for o in range(0,1000,50):
-        rows=get(PF.format(o=o,s=s),'pump') or []
+        try: rows=get(PF.format(o=o,s=s),'pump') or []
+        except Exception as ex:
+            warn('pump.fun',f'{ex} - falling back to GMGN completed list'); pump_ok=False; break
         for c in rows:
             if not c.get('complete'): continue
             m=c['mint']
@@ -43,7 +51,9 @@ for s in ('created_timestamp','last_trade_timestamp'):
 # graduation time via GeckoTerminal (only tokens missing it), 30 pools/call, <=28 calls/min
 need=[t for t in db.values() if t.get('pool') and not t.get('grad') and not t.get('gt_miss',0)>=3]
 for i in range(0,len(need),30):
-    b=need[i:i+30]; r=get(GT+','.join(t['pool'] for t in b),'gecko') or {}
+    b=need[i:i+30]
+    try: r=get(GT+','.join(t['pool'] for t in b),'gecko') or {}
+    except Exception as ex: warn('GeckoTerminal',ex); break
     got={p['attributes']['address']:p['attributes'] for p in r.get('data',[])}
     for t in b:
         a=got.get(t['pool'])
@@ -66,7 +76,8 @@ t0=time.time();fails=0;LIMIT=1600
 for t in order[:LIMIT]:
     if time.time()-t0>900 or fails>=10:
         print('holders stopped early: fails',fails,'last',HL.LAST); break
-    h=HL.holders(t['mint'],t.get('tprog') or HL.PROG['2022']); calls['rpc']+=1
+    try: h=HL.holders(t['mint'],t.get('tprog') or HL.PROG['2022']); calls['rpc']+=1
+    except Exception: h=None
     if h is None: fails+=1; continue
     fails=0
     t['holders_now']=h; t['holders_at']=now
@@ -74,7 +85,8 @@ for t in order[:LIMIT]:
 print('holders missing',len(order),'checked',calls['rpc'],'helius credits',HL.CREDITS,'mode','helius' if HL.KEY else 'public')
 # GMGN quality snapshot (once per token) + launch-rate sample
 import gmgn
-G,err=gmgn.trenches(); calls['gmgn']=1
+try: G,err=gmgn.trenches()
+except Exception as ex: G,err=None,ex; calls['gmgn']=1
 LP=f'{D}/data/launches.json'; L=json.load(open(LP)) if os.path.exists(LP) else []
 if G:
     nc=[x['created_timestamp'] for x in G.get('new_creation',[]) if x.get('created_timestamp')]
@@ -89,12 +101,14 @@ if G:
         if 'gm' not in t:
             t['gm']={k:gmgn.num(x.get(k)) for k in gmgn.FIELDS if k in x}; t['gm_at']=now; got+=1
     print('gmgn completed',len(G.get('completed',[])),'new snapshots',got,'launch rate',L[-1] if L else None)
-else: print('gmgn failed',err)
+else: warn('GMGN',err)
 L=[x for x in L if x['ts']>=now-7*86400]; json.dump(L,open(LP,'w'))
 # other launchpads: GMGN trenches (1 call each, weight 2) -> graduates de-duplicated by address
 KP=f'{D}/data/launchpads.json'; K=json.load(open(KP)) if os.path.exists(KP) else {}
 for ck,chain,plat,lab in gmgn.LPS:
-    time.sleep(2.5); r=gmgn.trench(chain,plat); calls['gmgn']+=1
+    time.sleep(2.5)
+    try: r=gmgn.trench(chain,plat)
+    except Exception: r=None
     e=K.setdefault(lab,{'chain':ck,'grads':{},'launch':[]})
     if not r: print('gmgn',lab,'failed'); continue
     for x in r.get('completed',[]):
@@ -115,7 +129,7 @@ json.dump(K,open(KP,'w'))
 import llama
 LLd=None
 try: LLd={'updated':now,**llama.fetch(),'BOTS':llama.bots()}; json.dump(LLd,open(f'{D}/data/llama.json','w')); calls['llama']=1
-except Exception as ex: print('llama failed',ex)
+except Exception as ex: warn('DefiLlama',ex)
 import history
 try: history.update(LLd,db,L,K,now); print('history days',len(history.load()))
 except Exception as ex: print('history failed',ex)
@@ -125,5 +139,5 @@ except Exception as ex: print('perf failed',ex)
 cut=now-7*86400
 db={m:t for m,t in db.items() if (t.get('grad') or t['created'])>=cut}
 json.dump(db,open(DB+'.tmp','w')); os.replace(DB+'.tmp',DB)
-json.dump({'updated':now,'calls':calls,'n':len(db)},open(f'{D}/data/meta.json','w'))
+json.dump({'updated':now,'calls':calls,'n':len(db),'degraded':DEG},open(f'{D}/data/meta.json','w'))
 print('tokens',len(db),'with grad time',sum(1 for t in db.values() if t.get('grad')),'calls',calls)
