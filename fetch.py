@@ -27,27 +27,42 @@ def get(u,k):
         except Exception:
             if i==3: raise
         time.sleep(3)
-db=json.load(open(DB)) if os.path.exists(DB) else {}
+import sys
 now=int(time.time())
+RAW=f'{D}/data/pumpfun_raw.json'; KEEP=('mint','name','symbol','pump_swap_pool','pool_address','created_timestamp','ath_market_cap','ath_market_cap_timestamp','usd_market_cap','token_program','complete')
+def pump_rows():
+    out={}
+    for s in ('created_timestamp','last_trade_timestamp'):
+        for o in range(0,1000,50):
+            rows=get(PF.format(o=o,s=s),'pump') or []
+            for c in rows:
+                if c.get('complete'): out[c['mint']]={k:c.get(k) for k in KEEP}
+            if len(rows)<50: break
+            time.sleep(1)
+    return sorted(out.values(),key=lambda c:-c['created_timestamp'])
+if '--pump-only' in sys.argv:  # box mode: pump.fun only -> data/pumpfun_raw.json
+    try: rows=pump_rows()
+    except Exception as ex: sys.exit(f'box pump.fun fetch failed: {ex}')
+    if not rows: sys.exit('box pump.fun fetch failed: 0 graduated coins')
+    json.dump({'fetched':now,'n':len(rows),'coins':rows},open(RAW+'.tmp','w'),separators=(',',':')); os.replace(RAW+'.tmp',RAW)
+    print('pump.fun raw',len(rows)); sys.exit(0)
+db=json.load(open(DB)) if os.path.exists(DB) else {}
 OLD0=json.load(open(f'{D}/data/old.json')) if os.path.exists(f'{D}/data/old.json') else {}
-pump_ok=True
-for s in ('created_timestamp','last_trade_timestamp'):
-    if not pump_ok: break
-    for o in range(0,1000,50):
-        try: rows=get(PF.format(o=o,s=s),'pump') or []
-        except Exception as ex:
-            warn('pump.fun',f'{ex} - falling back to GMGN completed list'); pump_ok=False; break
-        for c in rows:
-            if not c.get('complete'): continue
-            m=c['mint']
-            if m in OLD0: continue
-            t=db.setdefault(m,{'mint':m,'first_seen':now})
-            t.update(name=c.get('name'),symbol=c.get('symbol'),pool=c.get('pump_swap_pool') or c.get('pool_address'),
-                created=c['created_timestamp']//1000,ath_mcap=c.get('ath_market_cap'),
-                ath_ts=(c.get('ath_market_cap_timestamp') or 0)//1000 or None,
-                mcap=c.get('usd_market_cap'),tprog=c.get('token_program'),updated=now,source='pump.fun v3')
-        if len(rows)<50: break
-        time.sleep(1)
+psrc='pump.fun v3'
+try: prow=pump_rows()
+except Exception as ex:
+    prow=[]; R=json.load(open(RAW)) if os.path.exists(RAW) else {}
+    age=now-R.get('fetched',0)
+    if age<7200 and R.get('coins'): prow=R['coins']; psrc='pump.fun v3 (box)'; print(f'pump.fun {ex}; using box raw file ({age//60} min old, {len(prow)} coins)')
+    else: warn('pump.fun',f'{ex}; box raw file {"missing" if not R else str(age//60)+" min old"} - GMGN fallback only')
+for c in prow:
+    m=c['mint']
+    if m in OLD0: continue
+    t=db.setdefault(m,{'mint':m,'first_seen':now})
+    t.update(name=c.get('name'),symbol=c.get('symbol'),pool=c.get('pump_swap_pool') or c.get('pool_address'),
+        created=c['created_timestamp']//1000,ath_mcap=c.get('ath_market_cap'),
+        ath_ts=(c.get('ath_market_cap_timestamp') or 0)//1000 or None,
+        mcap=c.get('usd_market_cap'),tprog=c.get('token_program'),updated=now,source=psrc)
 # graduation time via GeckoTerminal (only tokens missing it), 30 pools/call, <=28 calls/min
 need=[t for t in db.values() if t.get('pool') and not t.get('grad') and not t.get('gt_miss',0)>=3]
 for i in range(0,len(need),30):
