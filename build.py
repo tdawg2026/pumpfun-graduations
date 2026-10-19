@@ -43,7 +43,7 @@ CPK=[('1h',3600),('6h',6*3600),('24h',86400),('7d',7*86400)]
 def pstats(since):
     out={}
     for k,sec in CPK:
-        due=[e for e in PERF.values() if e['g']>=since and e['g']+sec<=now]
+        due=[e for e in PERF.values() if e.get('smp') and e.get('miss',0)<3 and e['g']>=since and e['g']+sec<=now]
         for gname,fn in (('all',lambda e:True),('clean',lambda e:e.get('c')==1),('dirty',lambda e:e.get('c')==0),('nogm',lambda e:e.get('c') is None)):
             x=[e['cp'][k] for e in due if fn(e) and k in e['cp']]
             out[f'{k}_{gname}']={'n':len(x),'due':sum(1 for e in due if fn(e)),'ret':medn([c[1] for c in x]),'alive':(sum(c[3] for c in x)/len(x)) if x else None,
@@ -58,7 +58,7 @@ for r in rows:
 cov={'n':len(rows),'grad':sum(1 for t in db if t.get('grad')),'hold':sum(1 for t in db if t.get('holders_now') is not None),
  'gm24':[sum(1 for r in rows if r['g']>=now-86400 and r['q']),sum(1 for r in rows if r['g']>=now-86400)],
  'liq48':[sum(1 for e in PERF.values() if e['g']>=now-48*3600 and e.get('liq_at')),sum(1 for e in PERF.values() if e['g']>=now-48*3600)],
- 'perf_n':len(PERF),'perf_first':min([e['g'] for e in PERF.values()],default=None),
+ 'perf_n':sum(1 for e in PERF.values() if e.get('smp')),'perf_first':min([e['g'] for e in PERF.values()],default=None),
  'liq_at':max([e.get('liq_at',0) for e in PERF.values()],default=0),'llama':LL.get('updated'),'hist_days':len(HH),
  'degraded':meta.get('degraded',[]),'pump_days':sum(1 for r in HH.values() if r.get('src_pump')=='observed')}
 os.makedirs(f'{D}/public/data',exist_ok=True)
@@ -76,8 +76,8 @@ th{cursor:pointer;color:#8b949e;position:sticky;top:0;background:#161b22}td:firs
 #chart,#trend,#bottrend{width:100%;height:220px}.big{font-size:32px!important}.scroll{max-height:520px;overflow:auto}.note{color:#8b949e;font-size:12px;line-height:1.6}</style></head><body>
 <h1>Meme 情绪看板 · pump.fun 毕业与发射台</h1><div class="sub">时间均为 UTC+7 · 最后更新：<span id="upd"></span></div>
 <div class="card" id="hero"></div>
-<div class="card"><b>毕业后表现：干净 vs 不干净</b> <span class="sub">毕业后 +1h / +6h / +24h / +7d 检查点（GeckoTerminal 每小时 K 线；收益相对毕业价）</span> <select id="pwin"><option value="all">全部历史</option><option value="d7">近 7 天毕业</option></select>
-<div class="scroll"><table id="perf"></table></div><div class="note">样本 &lt; 20 的组显示「样本不足」。存活 = 检查点市值 ≥ $10K 且检查点前近期仍有成交。最大回撤 = 毕业到检查点之间从最高点的最大跌幅。流动性只在检查点到期 2 小时内采集（GeckoTerminal 池子当前储备），更晚补算的检查点没有流动性。7d 检查点需代币毕业满 7 天后才会出现。</div></div>
+<div class="card"><b>综合 Meme 情绪指数</b> <span class="sub">发射台活跃度 + 交易机器人活跃度（DefiLlama）+ pump.fun 数量与质量（本站 + GMGN）</span>
+<div class="kpi" id="overall" style="margin-top:10px"></div><div class="kpi" id="chains" style="margin-top:10px"></div><details><summary class="sub">计算方法</summary><div class="note" id="ocomp"></div></details></div>
 <div class="card"><b>代币榜单</b> <span class="sub">内盘 ATH（毕业前）/ 毕业后 ATH / 当前市值分开展示</span>
 <div style="margin:8px 0"><button class="rk on" data-r="best">表现最好</button> <button class="rk" data-r="trade">可交易</button> <button class="rk" data-r="clean">干净</button>
  <span class="sub">窗口</span> <select id="rwin"><option value="86400">近 24 小时毕业</option><option value="604800">近 7 天毕业</option></select>
@@ -85,9 +85,9 @@ th{cursor:pointer;color:#8b949e;position:sticky;top:0;background:#161b22}td:firs
 <div class="note" id="rkdesc"></div><div class="scroll"><table id="rank"></table></div></div>
 <div class="card"><b>数据覆盖</b> <span class="sub">各指标的覆盖率、样本量和最后更新时间（UTC+7）</span><div class="scroll"><table id="cov"></table></div>
 <div class="note">下载原始数据：<a href="data/daily.csv">daily.csv</a> · <a href="data/daily.json">daily.json</a>（每日历史，永久保留） · <a href="data/perf.json">perf.json</a>（毕业后表现，永久保留）</div></div>
-<div class="card"><b>综合 Meme 情绪指数</b> <span class="sub">发射台活跃度 + 交易机器人活跃度（DefiLlama）+ pump.fun 数量与质量（本站 + GMGN）</span>
-<div class="kpi" id="overall" style="margin-top:10px"></div><div class="kpi" id="chains" style="margin-top:10px"></div><details><summary class="sub">计算方法</summary><div class="note" id="ocomp"></div></details></div>
 <div class="card"><b>历史分位</b> <span class="sub">每个指标当前值在已记录历史中的百分位（全部 / 近 1 年 / 近 90 天）；样本不足 30 天的不显示分位</span><div class="scroll"><table id="hist"></table></div><details><summary class="sub">说明</summary><div class="note">历史数据每天一行（data/history/daily.csv，永久保留）。DefiLlama 序列（发射台、交易机器人）为回填的完整历史（UTC 日），之后每次运行更新；pump.fun / GMGN 指标只从本站开始采集时（2026-10-12 起完整）累积，较早不完整的日子不计入；当天为未完结数据（标 *）。历史指数按日重算：手续费类 = 50 × 近 3 日均值 ÷ 此前 30 日中位数；pump.fun 指数用前 7 个完整日中位数作基线（需 ≥3 天）。</div></details></div>
+<div class="card"><b>毕业后表现（抽样）</b> <span class="sub">毕业后 +1h / +6h / +24h / +7d 检查点（GeckoTerminal 每小时 K 线；收益相对毕业价）</span> <select id="pwin"><option value="all">全部历史</option><option value="d7">近 7 天毕业</option></select>
+<div class="scroll"><table id="perf"></table></div><div class="note">抽样：每个毕业小时随机抽 3 个代币跟踪（约 72 个/天），统计值来自抽样，n 为已完成检查点的抽样数；样本 &lt; 20 时只显示进度。存活 = 检查点市值 ≥ $10K 且检查点前近期仍有成交。最大回撤 = 毕业到检查点之间从最高点的最大跌幅。流动性只在检查点到期 2 小时内采集（GeckoTerminal 池子当前储备），更晚补算的检查点没有流动性。7d 检查点需代币毕业满 7 天后才会出现。</div></div>
 <div class="card"><b>交易机器人 / 交易终端</b> <span class="sub">DefiLlama「Trading App」+「Telegram Bot」类 7 天手续费前 3</span><div class="scroll"><table id="bott"></table></div><svg id="bottrend"></svg></div>
 <div class="card"><b>发射台对比</b> <span class="sub">每条链除 pump.fun 外手续费前 2 的发射台（DefiLlama 7 天手续费排名）</span><div class="scroll"><table id="lpt"></table></div></div>
 <div class="card"><b>pump.fun 情绪指数</b> <span class="sub">基于 pump.fun 毕业数量与质量，对比 7 天基线</span>

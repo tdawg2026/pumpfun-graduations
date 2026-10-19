@@ -2,9 +2,12 @@
 Per token: checkpoints +1h/+6h/+24h/+7d from GeckoTerminal hourly OHLCV (USD, base token; mcap = price x 1e9 supply).
 cp[k] = [mcap, return vs graduation price, max drawdown from running peak, alive(0/1), liquidity USD or null]
 Completed checkpoints are never refetched. Liquidity = GeckoTerminal reserve_in_usd, only recorded when the
-checkpoint is filled within 2h of being due (otherwise null, since only the current pool reserve is available)."""
-import json,os,time,urllib.request,urllib.error
+checkpoint is filled within 2h of being due (otherwise null, since only the current pool reserve is available).
+SAMPLED: only SPH tokens per graduation hour (lowest md5(mint) in that hour = deterministic random sample) get
+checkpoints/liquidity; e["smp"]=1 marks them. ~1000 grads/day cannot all be fetched within GeckoTerminal free limits."""
+import json,os,time,urllib.request,urllib.error,hashlib
 D=os.path.dirname(os.path.abspath(__file__)); PP=f'{D}/data/perf.json'
+SPH=3  # sampled tokens per graduation hour (~72/day)
 CP=[('1h',3600),('6h',6*3600),('24h',86400),('7d',7*86400)]
 GT='https://api.geckoterminal.com/api/v2/networks/solana/pools/'
 def get(u):
@@ -33,11 +36,18 @@ def update(db,now,budget=480,maxcalls=200):
             if (t.get('ath_ts') or 0)<=t['grad']+120: e['pre']=round(t['ath_mcap'])
             else: e['ath_pf']=round(t['ath_mcap'])
         if t.get('mcap'): e['now']=round(t['mcap'])
+    B={}
+    for m,e in P.items(): B.setdefault(e['g']//3600,[]).append(m)
+    for ms in B.values():
+        ms.sort(key=lambda m:hashlib.md5(m.encode()).hexdigest())
+        for i,m in enumerate(ms):
+            if i<SPH: P[m]['smp']=1
+            else: P[m].pop('smp',None)
     # current liquidity for recent pools (<=8d), 30 per call
     def soon(e):
         if e['g']>=now-24*3600: return True
         return any(k not in e['cp'] and -3600<=now-(e['g']+s)<=7200 for k,s in CP)
-    live=[e for e in P.values() if e['g']>=now-8*86400 and soon(e)]
+    live=[e for e in P.values() if e.get('smp') and e['g']>=now-8*86400 and soon(e)]
     for i in range(0,len(live),30):
         b=live[i:i+30]; r=get(GT+'multi/'+','.join(e['p'] for e in b)); calls+=1
         a={p['attributes']['address']:p['attributes'] for p in (r or {}).get('data',[])}
@@ -50,6 +60,7 @@ def update(db,now,budget=480,maxcalls=200):
     # checkpoints due & missing; freshest-due first (so liquidity can be captured), then backlog
     due=[]
     for m,e in P.items():
+        if not e.get('smp'): continue
         miss=[(k,s) for k,s in CP if k not in e['cp'] and now>=e['g']+s]
         if miss and e.get('miss',0)<3: due.append((now-(e['g']+miss[0][1])>7200,-e['g'],m,miss))
     due.sort(); t0=time.time(); calls=0  # checkpoints get their own budget
@@ -74,7 +85,7 @@ def update(db,now,budget=480,maxcalls=200):
         hi=max(c[2] for c in L)*1e9; e['post']=round(max(hi,e.get('ath_pf',0)))
         done+=1; time.sleep(2.1)
     json.dump(P,open(PP+'.tmp','w'),separators=(',',':')); os.replace(PP+'.tmp',PP)
-    print('perf tokens',len(P),'due',len(due),'filled',done,'gecko calls',calls)
+    print('perf tokens',len(P),'sampled',sum(1 for e in P.values() if e.get('smp')),'due',len(due),'filled',done,'gecko calls',calls)
     return P
 if __name__=='__main__':
     import sys
