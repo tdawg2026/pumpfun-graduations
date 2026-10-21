@@ -73,3 +73,15 @@ document.getElementById('rwin').onchange=rankTable;document.getElementById('liqm
  document.getElementById('cov').innerHTML='<tr><th>指标</th><th>覆盖率</th><th>样本量</th><th>最后更新</th></tr>'+rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')+
   ((C.degraded||[]).length?`<tr><td colspan=4>⚠️ 本次更新以下数据源失败，沿用旧数据/备用源：${C.degraded.join('、')}</td></tr>`:'')+
   `<tr><td colspan=4 class=sub>毕业后表现数据从 ${C.perf_first?ts(C.perf_first):'-'} 毕业的代币开始，共 ${C.perf_n} 个（抽样跟踪，每毕业小时 3 个）</td></tr>`})();
+(function(){const F=D.fomo,el=document.getElementById('fomosent');if(!F||!el)return;
+ const a=F.chains.all,FD=(D.fd||[]).filter(r=>!r.partial),L7=FD.slice(-7),L30=FD.slice(-30),avg=x=>x.length?x.reduce((s,v)=>s+v,0)/x.length:null;
+ const M=[['已实现盈亏中位数（卖出）',a.pnl_med,r=>r.all.pnl_med,v=>v==null?'-':(v<0?'-$':'$')+Math.abs(Math.round(v)).toLocaleString()],
+  ['卖出盈利占比',a.sell_win,r=>r.all.profit_share,v=>v==null?'-':Math.round(v*100)+'%'],
+  ['买/卖笔数比',a.ratio,r=>r.all.sells?r.all.buys/r.all.sells:null,v=>v==null?'-':v.toFixed(2)],
+  ['买入笔数',a.buys,r=>r.all.buys,v=>v==null?'-':Math.round(v).toLocaleString()]];
+ const ok=L30.length>=30;
+ const rows=M.map(([nm,cur,g,fmt])=>{const h7=L7.map(g).filter(v=>v!=null),m7=avg(h7),h30=L30.map(g).filter(v=>v!=null);
+  const d=cur!=null&&m7!=null?cur-m7:null,col=d==null?'':d>=0?'#3fb950':'#f85149';
+  let p='-';if(ok&&cur!=null&&h30.length>=30){const P=Math.round(100*h30.filter(v=>v<=cur).length/h30.length);p=`<b style="color:${P>=80?'#f85149':P<=20?'#58a6ff':''}">P${P}</b>`}
+  return `<tr><td>${nm}</td><td><b>${fmt(cur)}</b></td><td>${m7==null?'-':fmt(m7)} <span class=sub>(${h7.length} 天)</span></td><td style="color:${col}">${d==null?'-':(d>=0?'▲':'▼')}</td><td>${ok?p:`<span class=sub>收集中 ${FD.length}/30 天</span>`}</td></tr>`}).join('');
+ el.innerHTML=`<div class="scroll"><table><tr><th>当前情绪（近 24h）</th><th>当前</th><th>近 7 天日均</th><th>对比</th><th>近 30 天分位</th></tr>${rows}</table></div><div class="note">日汇总永久保存于 data/history/fomo_daily.csv（UTC+7 自然日，只算覆盖 ≥22 小时的完整日）。近 30 天分位 = 近 30 个完整日中 ≤ 当前值的天数占比，满 30 天自动启用；≥P80 红、≤P20 蓝。已实现盈亏为该笔仓位累计值（FOMO 口径）。</div>`})();

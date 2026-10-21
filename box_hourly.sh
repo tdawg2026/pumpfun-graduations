@@ -19,8 +19,8 @@ hb=$(cat "$FD/heartbeat" 2>/dev/null || echo 0)
 if ! pgrep -f "python3 .*fomo_ws.py" >/dev/null || [ $(( $(date +%s) - hb )) -gt 900 ]; then
   pkill -f "python3 .*fomo_ws.py"; echo "fomo_ws (re)started"; (setsid nohup python3 "$PWD/fomo_ws.py" >> "$FD/ws.log" 2>&1 &)
 fi
-[ -s "$HOME/.config/fomoapi_key" ] && { python3 fomo_agg.py || echo "WARNING fomo_agg failed (continuing)"; }
-git add data/pumpfun_raw.json data/fomo_flow.json
+[ -s "$HOME/.config/fomoapi_key" ] && { python3 fomo_agg.py || echo "WARNING fomo_agg failed (continuing)"; python3 fomo_daily.py || echo "WARNING fomo_daily failed (continuing)"; }
+git add data/pumpfun_raw.json data/fomo_flow.json data/history/fomo_daily.json data/history/fomo_daily.csv
 if git diff --cached --quiet; then echo "no change"; else
   git -c user.name=box -c user.email=box@localhost commit -qm "box pump.fun raw $(date -u +%FT%H:%MZ)" || die "commit failed"
   ok=; for i in 1 2 3 4 5; do

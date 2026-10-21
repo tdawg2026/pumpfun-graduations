@@ -65,8 +65,9 @@ os.makedirs(f'{D}/public/data',exist_ok=True)
 for src in ('history/daily.json','history/daily.csv','perf.json'):
     if os.path.exists(f'{D}/data/{src}'): shutil.copy(f'{D}/data/{src}',f'{D}/public/data/'+os.path.basename(src))
 FMp=f'{D}/data/fomo_flow.json'; FM=json.load(open(FMp)) if os.path.exists(FMp) else None
+FDp=f'{D}/data/history/fomo_daily.json'; FD=json.load(open(FDp)) if os.path.exists(FDp) else []
 if FM: FM['hist']=[h for h in FM.get('hist',[]) if h[0]>=now-7*86400]; FM['lb']=FM.get('lb',[])[-30:]
-data=json.dumps({'fomo':FM,'ps':PS,'cov':cov,'hist':hist,'ll':LL,'lp':KP,'rows':rows,'updated':meta['updated'],'launch':L},separators=(',',':'))
+data=json.dumps({'fomo':FM,'fd':FD,'ps':PS,'cov':cov,'hist':hist,'ll':LL,'lp':KP,'rows':rows,'updated':meta['updated'],'launch':L},separators=(',',':'))
 html=r'''<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>pump.fun 每小时毕业代币</title><style>
 body{background:#0d1117;color:#e6edf3;font:14px -apple-system,"PingFang SC",sans-serif;margin:0;padding:16px;max-width:1200px;margin:auto}
@@ -91,7 +92,7 @@ th{cursor:pointer;color:#8b949e;position:sticky;top:0;background:#161b22}td:firs
 <div class="card"><b>毕业后表现（抽样）</b> <span class="sub">毕业后 +1h / +6h / +24h / +7d 检查点（GeckoTerminal 每小时 K 线；收益相对毕业价）</span> <select id="pwin"><option value="all">全部历史</option><option value="d7">近 7 天毕业</option></select>
 <div class="scroll"><table id="perf"></table></div><div class="note">抽样：每个毕业小时随机抽 3 个代币跟踪（约 72 个/天），统计值来自抽样，n 为已完成检查点的抽样数；样本 &lt; 20 时只显示进度。存活 = 检查点市值 ≥ $10K 且检查点前近期仍有成交。最大回撤 = 毕业到检查点之间从最高点的最大跌幅。流动性只在检查点到期 2 小时内采集（GeckoTerminal 池子当前储备），更晚补算的检查点没有流动性。7d 检查点需代币毕业满 7 天后才会出现。</div></div>
 <div class="card"><b>交易机器人 / 交易终端</b> <span class="sub">DefiLlama「Trading App」+「Telegram Bot」类 7 天手续费前 3</span><div class="scroll"><table id="bott"></table></div><svg id="bottrend"></svg></div>
-<div class="card"><b>FOMO 大户买卖</b> <span class="sub">仅 FOMO 平台（fomo.family）App 动态里的大额买卖（约 $3K+ 仓位），经非官方 fomoapi.io 采集；近 24 小时</span><div class="kpi" id="fomo" style="margin-top:10px"></div><svg id="fomotrend"></svg><div class="note" id="fomonote"></div></div>
+<div class="card"><b>FOMO 大户买卖</b> <span class="sub">仅 FOMO 平台（fomo.family）App 动态里的大额买卖（约 $3K+ 仓位），经非官方 fomoapi.io 采集；近 24 小时</span><div class="kpi" id="fomo" style="margin-top:10px"></div><svg id="fomotrend"></svg><div id="fomosent" style="margin-top:8px"></div><div class="note" id="fomonote"></div></div>
 <div class="card"><b>发射台对比</b> <span class="sub">每条链除 pump.fun 外手续费前 2 的发射台（DefiLlama 7 天手续费排名）</span><div class="scroll"><table id="lpt"></table></div></div>
 <div class="card"><b>pump.fun 情绪指数</b> <span class="sub">基于 pump.fun 毕业数量与质量，对比 7 天基线</span>
 <div class="kpi" id="senti" style="margin-top:10px"></div><svg id="trend"></svg><details><summary class="sub">计算方法</summary><div class="note" id="comp"></div></details></div>

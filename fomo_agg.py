@@ -35,7 +35,7 @@ def agg(es):
     b=[e for e in es if e['side']=='buy']; s=[e for e in es if e['side']=='sell']
     bu=sum(e.get('pos') or 0 for e in b); pn=[e['pnl'] for e in s if isinstance(e.get('pnl'),(int,float))]
     return {'buys':len(b),'sells':len(s),'net_count':len(b)-len(s),'ratio':round(len(b)/len(s),3) if s else None,'buy_usd':round(bu),
-            'sell_pnl':round(sum(pn)),'sell_win':round(sum(1 for x in pn if x>0)/len(pn),3) if pn else None,
+            'sell_pnl':round(sum(pn)),'pnl_med':round(statistics.median(pn),1) if pn else None,'sell_win':round(sum(1 for x in pn if x>0)/len(pn),3) if pn else None,
             'buyers':len({e['user'] for e in b if e.get('user')}),'sellers':len({e['user'] for e in s if e.get('user')})}
 cov=min(24.0,(now-min([e['ts'] for e in E.values() if isinstance(e.get('ts'),(int,float))],default=now*1000)/1000)/3600)
 chains={'all':agg(ev),'solana':agg([e for e in ev if e.get('chain')=='solana'])}
