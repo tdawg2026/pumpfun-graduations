@@ -44,6 +44,20 @@ function rankTable(){const win=+document.getElementById('rwin').value,lm=+docume
   a.slice(0,30).map(r=>`<tr><td><b>${esc(r.s)}</b> <span class=sub>${esc(r.n)}</span></td><td>${ts(r.g)}</td><td>${f(r.g0)}</td><td>${f(r.pre)}</td><td>${f(r.post)}</td><td>${r.post&&r.g0?(r.post/r.g0).toFixed(1)+'x':'-'}</td><td>${f(r.c)}</td><td>${f(r.lq)}</td><td>${qcell(r)}</td><td><a href="https://dexscreener.com/solana/${r.m}" target="_blank">dex</a></td></tr>`).join('')||'<tr><td class=sub>暂无符合条件的代币</td></tr>'}
 document.querySelectorAll('button.rk').forEach(b=>b.onclick=()=>{document.querySelectorAll('button.rk').forEach(x=>x.classList.remove('on'));b.classList.add('on');RK=b.dataset.r;rankTable()});
 document.getElementById('rwin').onchange=rankTable;document.getElementById('liqmin').oninput=rankTable;rankTable();
+// ===== FOMO 大户买卖 =====
+(function(){const F=D.fomo,el=document.getElementById('fomo');if(!F){el.innerHTML='<div class=sub>暂无数据</div>';return}
+ const a=F.chains.all,s=F.chains.solana,n=v=>v==null?'-':Math.round(v).toLocaleString(),r=v=>v==null?'-':v.toFixed(2),stale=D.updated-F.updated>3*3600;
+ const lb=F.lb&&F.lb[F.lb.length-1],OV=window.OV||{};
+ el.innerHTML=`<div>买/卖笔数比<b style="color:${a.ratio>=1?'#3fb950':'#f85149'}">${r(a.ratio)}</b><span class=sub>买 ${n(a.buys)} · 卖 ${n(a.sells)} 笔</span></div>
+ <div>净买入笔数<b style="color:${a.net_count>=0?'#3fb950':'#f85149'}">${a.net_count>=0?'+':''}${n(a.net_count)}</b><span class=sub>买入笔数 − 卖出笔数</span></div>
+ <div>独立买家<b>${n(a.buyers)}</b><span class=sub>卖家 ${n(a.sellers)}</span></div>
+ <div>Solana<b>${r(s.ratio)}</b><span class=sub>买 ${n(s.buys)} / 卖 ${n(s.sells)} · 买家 ${n(s.buyers)}</span></div>
+ <div>卖出盈利占比<b>${a.sell_win==null?'-':Math.round(a.sell_win*100)+'%'}</b><span class=sub>卖出已实现盈亏合计 ${f(a.sell_pnl)}</span></div>
+ <div>FOMO 子分（交易机器人内）<b>${F.idx==null?'-':F.idx.toFixed(0)}</b><span class=sub>${F.idx==null?`积累基线中（${F.base_n}/72 小时）`:'50 × 24h 买入笔数 ÷ 前 7 天中位'}</span></div>`;
+ const H=F.hist.filter(h=>h[5]>=20);if(H.length>=2){const R=H.map(h=>h[3]?h[1]/h[3]:1),mx=Math.max(1.5,...R),mn=Math.min(0.5,...R),Y=v=>150-140*(v-mn)/(mx-mn),X=i=>i*1000/(H.length-1);
+  document.getElementById('fomotrend').outerHTML=`<svg viewBox="0 0 1000 160" preserveAspectRatio="none" style="width:100%;height:140px"><line x1="0" x2="1000" y1="${Y(1)}" y2="${Y(1)}" stroke="#30363d"/><polyline fill="none" stroke="#3fb950" stroke-width="2" points="${R.map((v,i)=>X(i)+','+Y(v)).join(' ')}"/><text x="4" y="14" fill="#8b949e" font-size="12">滚动 24h 买/卖笔数比（每小时，近 ${H.length} 点）· 横线 = 1</text></svg>`}
+ else document.getElementById('fomotrend').outerHTML='<div class=sub>走势：数据积累中（每小时一个点）</div>';
+ document.getElementById('fomonote').innerHTML=`${stale?'⚠️ 数据已超过 3 小时未更新。':''}说明：只含 FOMO 平台 App 动态推送的 LARGE 级买卖（起点约 $3K 仓位），不是全市场；非官方接口。卖出事件只带已实现盈亏、不带成交额，所以不算美元净流入，用笔数代替；买入额为买后仓位市值合计 ${f(a.buy_usd)}。覆盖 ${F.coverage_h}h · 更新 ${ts(F.updated)}${lb?` · 24h 盈利榜前 ${lb.n} 名盈亏中位数 ${f(lb.median_pnl)}（${lb.day}）`:''}。在综合指数中占「交易机器人活跃度」的 20%（其余 80% 为 DefiLlama 手续费分），数据不足时不计入。`})();
 // ===== 覆盖率 =====
 (function(){const C=D.cov,p=(a,b)=>b?Math.round(100*a/b)+'%':'-',U=ts(D.updated),ok=(a,b,min)=>b<min?' <span class=sub>⚠️ 样本不足</span>':'';
  const P=D.ps.all,cp=k=>P[k+'_all'];
@@ -53,6 +67,7 @@ document.getElementById('rwin').onchange=rankTable;document.getElementById('liqm
   ...['1h','6h','24h','7d'].map(k=>[`毕业后 +${k} 检查点（抽样）`,p(cp(k).n,cp(k).due)+(cp(k).n<20?` <span class=sub>n=${cp(k).n}，积累中</span>`:` <span class=sub>n=${cp(k).n}</span>`),cp(k).due,U]),
   ['pump.fun 发射速率样本（近 7 天）',D.launch.length?'-':'无',D.launch.length,D.launch.length?ts(D.launch[D.launch.length-1].ts):'-'],
   ['DefiLlama 手续费（发射台 / 机器人）','UTC 日粒度','-',C.llama?ts(C.llama):'-'],
+  ['FOMO 大户买卖（非官方 fomoapi.io）',D.fomo?(D.fomo.coverage_h+'h / 24h'+(D.fomo.idx==null?' <span class=sub>子分基线积累中</span>':'')):'无',D.fomo?D.fomo.chains.all.buys+D.fomo.chains.all.sells:0,D.fomo?ts(D.fomo.updated):'-'],
   ['pump.fun 指数基线（小时）',window.NB>=24?'正常':'不足 24h',window.NB,U],
   ['每日历史记录',`${C.pump_days} 天 pump.fun 完整日`+(C.pump_days<30?' <span class=sub>⚠️ 分位需 ≥30 天</span>':''),C.hist_days,U]];
  document.getElementById('cov').innerHTML='<tr><th>指标</th><th>覆盖率</th><th>样本量</th><th>最后更新</th></tr>'+rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join('')+

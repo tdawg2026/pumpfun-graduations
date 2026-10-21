@@ -64,7 +64,9 @@ cov={'n':len(rows),'grad':sum(1 for t in db if t.get('grad')),'hold':sum(1 for t
 os.makedirs(f'{D}/public/data',exist_ok=True)
 for src in ('history/daily.json','history/daily.csv','perf.json'):
     if os.path.exists(f'{D}/data/{src}'): shutil.copy(f'{D}/data/{src}',f'{D}/public/data/'+os.path.basename(src))
-data=json.dumps({'ps':PS,'cov':cov,'hist':hist,'ll':LL,'lp':KP,'rows':rows,'updated':meta['updated'],'launch':L},separators=(',',':'))
+FMp=f'{D}/data/fomo_flow.json'; FM=json.load(open(FMp)) if os.path.exists(FMp) else None
+if FM: FM['hist']=[h for h in FM.get('hist',[]) if h[0]>=now-7*86400]; FM['lb']=FM.get('lb',[])[-30:]
+data=json.dumps({'fomo':FM,'ps':PS,'cov':cov,'hist':hist,'ll':LL,'lp':KP,'rows':rows,'updated':meta['updated'],'launch':L},separators=(',',':'))
 html=r'''<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>pump.fun 每小时毕业代币</title><style>
 body{background:#0d1117;color:#e6edf3;font:14px -apple-system,"PingFang SC",sans-serif;margin:0;padding:16px;max-width:1200px;margin:auto}
@@ -89,6 +91,7 @@ th{cursor:pointer;color:#8b949e;position:sticky;top:0;background:#161b22}td:firs
 <div class="card"><b>毕业后表现（抽样）</b> <span class="sub">毕业后 +1h / +6h / +24h / +7d 检查点（GeckoTerminal 每小时 K 线；收益相对毕业价）</span> <select id="pwin"><option value="all">全部历史</option><option value="d7">近 7 天毕业</option></select>
 <div class="scroll"><table id="perf"></table></div><div class="note">抽样：每个毕业小时随机抽 3 个代币跟踪（约 72 个/天），统计值来自抽样，n 为已完成检查点的抽样数；样本 &lt; 20 时只显示进度。存活 = 检查点市值 ≥ $10K 且检查点前近期仍有成交。最大回撤 = 毕业到检查点之间从最高点的最大跌幅。流动性只在检查点到期 2 小时内采集（GeckoTerminal 池子当前储备），更晚补算的检查点没有流动性。7d 检查点需代币毕业满 7 天后才会出现。</div></div>
 <div class="card"><b>交易机器人 / 交易终端</b> <span class="sub">DefiLlama「Trading App」+「Telegram Bot」类 7 天手续费前 3</span><div class="scroll"><table id="bott"></table></div><svg id="bottrend"></svg></div>
+<div class="card"><b>FOMO 大户买卖</b> <span class="sub">仅 FOMO 平台（fomo.family）App 动态里的大额买卖（约 $3K+ 仓位），经非官方 fomoapi.io 采集；近 24 小时</span><div class="kpi" id="fomo" style="margin-top:10px"></div><svg id="fomotrend"></svg><div class="note" id="fomonote"></div></div>
 <div class="card"><b>发射台对比</b> <span class="sub">每条链除 pump.fun 外手续费前 2 的发射台（DefiLlama 7 天手续费排名）</span><div class="scroll"><table id="lpt"></table></div></div>
 <div class="card"><b>pump.fun 情绪指数</b> <span class="sub">基于 pump.fun 毕业数量与质量，对比 7 天基线</span>
 <div class="kpi" id="senti" style="margin-top:10px"></div><svg id="trend"></svg><details><summary class="sub">计算方法</summary><div class="note" id="comp"></div></details></div>
@@ -158,8 +161,8 @@ function overall(P){const LL=D.ll,ch={};let rec=0,base=0;
  // pump.fun 份额（近 7 天）
  const s7=(a,i)=>sum(a.slice(i-6,i+1)),sol=LL.SOL,ip=sol?lastFull(sol):0;let tot7=0,tot7p=0;Object.keys(ch).forEach(k=>{const c=LL[k],i=ch[k].i;tot7+=s7(c.total,i);tot7p+=s7(c.total,i-7)});
  const pumpShare=sol?s7(sol.protos['pump.fun'],ip)/tot7:null,pumpShareP=sol?s7(sol.protos['pump.fun'],ip-7)/tot7p:null;
- const BL=botLayer(),BS=BL?BL.S:null,parts=[[A,0.30],[BS,0.25],[P,0.45]].filter(x=>x[0]!=null),O=parts.length?sum(parts.map(x=>x[0]*x[1]))/sum(parts.map(x=>x[1])):null;
- window.OV={O,A,BS,BL};const sub={};Object.keys(ch).forEach(k=>{const fs=ch[k].s;if(k=='SOL'){sub[k]=P!=null?0.5*fs+0.5*P:fs;return}
+ const BL=botLayer(),FI=D.fomo&&D.fomo.idx!=null&&D.updated-D.fomo.updated<3*3600?D.fomo.idx:null,BS0=BL?BL.S:null,BS=BS0==null?null:(FI==null?BS0:0.8*BS0+0.2*FI),parts=[[A,0.30],[BS,0.25],[P,0.45]].filter(x=>x[0]!=null),O=parts.length?sum(parts.map(x=>x[0]*x[1]))/sum(parts.map(x=>x[1])):null;
+ window.OV={O,A,BS,BL,BS0,FI};const sub={};Object.keys(ch).forEach(k=>{const fs=ch[k].s;if(k=='SOL'){sub[k]=P!=null?0.5*fs+0.5*P:fs;return}
   const e=Object.values(D.lp).find(e=>e.chain==k),g=e&&lpRate(e,'grate');const gs=g&&g.base?clip(50*g.now/g.base):null;sub[k]=gs!=null?0.7*fs+0.3*gs:fs});
  const lab=v=>v==null?'-':v<40?'冷淡 🥶':v<=60?'中性 😐':'火热 🔥',col=v=>v<40?'#58a6ff':v<=60?'#d29922':'#f85149',n0=v=>v==null?'-':v.toFixed(0);
  document.getElementById('overall').innerHTML=`<div>综合指数<b class="big" style="color:${col(O)}">${n0(O)}</b>${lab(O)}</div><div>发射台活跃度<b>${n0(A)}</b><span class=sub>3 条链发射台日均手续费 ${f(rec)} · 基线 ${f(base)}</span></div><div>交易机器人活跃度<b>${n0(BS)}</b><span class=sub>前 3 日均手续费 ${BL?f(BL.rec):'-'} · 基线 ${BL?f(BL.base):'-'} · 截至 ${BL?new Date(BL.asof*1e3).toISOString().slice(5,10):'-'} UTC</span></div><div>pump.fun 指数<b>${n0(P)}</b><span class=sub>见下方 pump.fun 情绪指数</span></div><div>pump.fun 手续费份额（7天）<b>${pumpShare==null?'-':(pumpShare*100).toFixed(1)+'%'}</b><span class=sub>前 7 天 ${pumpShareP==null?'-':(pumpShareP*100).toFixed(1)+'%'}（仅展示，不计分）</span></div>`;
