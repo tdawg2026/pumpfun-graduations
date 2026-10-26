@@ -1,1 +1,1 @@
-{"updated": 1793024084, "calls": {"pump": 1, "gecko": 3, "rpc": 41, "llama": 1}, "n": 7101, "degraded": []}
+{"updated": 1793027720, "calls": {"pump": 1, "gecko": 3, "rpc": 43, "llama": 1}, "n": 7090, "degraded": ["GeckoTerminal"]}
