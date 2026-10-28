@@ -177,24 +177,24 @@
 },
 {
 "day": "2026-10-28",
-"n": 1385,
-"coverage_h": 13.1,
+"n": 1456,
+"coverage_h": 14.2,
 "partial": true,
 "all": {
-"buys": 731,
-"sells": 654,
-"buy_usd": 910114,
-"buy_usd_n": 281,
-"pnl_med": 193.0,
-"profit_share": 0.609
+"buys": 770,
+"sells": 686,
+"buy_usd": 948987,
+"buy_usd_n": 297,
+"pnl_med": 174.6,
+"profit_share": 0.608
 },
 "solana": {
-"buys": 358,
-"sells": 362,
-"buy_usd": 840176,
-"buy_usd_n": 213,
-"pnl_med": 296.6,
-"profit_share": 0.655
+"buys": 371,
+"sells": 373,
+"buy_usd": 870209,
+"buy_usd_n": 223,
+"pnl_med": 301.1,
+"profit_share": 0.657
 }
 }
 ]
