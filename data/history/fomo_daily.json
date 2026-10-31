@@ -243,11 +243,11 @@
 },
 {
 "day": "2026-10-31",
-"n": 1036,
-"coverage_h": 15.1,
+"n": 1038,
+"coverage_h": 15.2,
 "partial": true,
 "all": {
-"buys": 490,
+"buys": 492,
 "sells": 546,
 "buy_usd": 633709,
 "buy_usd_n": 218,
